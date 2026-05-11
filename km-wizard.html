@@ -1,0 +1,248 @@
+import React, { useState } from 'react';
+
+export default function GCLabPro() {
+  const [step, setStep] = useState(1);
+  const [formData, setFormData] = useState({
+    // Identificação
+    empresa: '', area: '', alunos: '',
+    // Diagnóstico
+    diagPessoas: '', diagProcessos: '', diagTecnologia: '', nivelMaturidade: '1',
+    // Gaps
+    gapPrincipal: '', impactoNegocio: '',
+    // Roadmap de Implantação
+    fase1Sensibilizacao: '',
+    fase2Arquitetura: '',
+    fase3Piloto: '',
+    fase4Sustentacao: '',
+    kpis: ''
+  });
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const nextStep = () => window.scrollTo(0, 0) || setStep(step + 1);
+  const prevStep = () => window.scrollTo(0, 0) || setStep(step - 1);
+
+  return (
+    <div className="min-h-screen bg-slate-100 p-4 md:p-8 font-sans">
+      <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
+        
+        {/* Header */}
+        <div className="bg-slate-800 text-white p-6 md:p-8">
+          <h1 className="text-3xl font-bold">GC-Consulting Lab</h1>
+          <p className="text-slate-300 mt-2 text-lg">Framework de Diagnóstico e Implantação de Projetos de Conhecimento</p>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="flex flex-col md:flex-row bg-slate-50 border-b">
+          {['Contexto', 'Diagnóstico 360', 'Análise de Gaps', 'Plano de Implantação', 'Roadmap Final'].map((label, idx) => (
+            <div key={idx} className={`flex-1 p-4 text-center text-sm font-semibold border-b-4 ${step === idx + 1 ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-transparent text-slate-400'}`}>
+              Passo {idx + 1}: {label}
+            </div>
+          ))}
+        </div>
+
+        <div className="p-6 md:p-10">
+          
+          {/* PASSO 1: CONTEXTO */}
+          {step === 1 && (
+            <div className="space-y-6 animate-fadeIn">
+              <h2 className="text-2xl font-bold text-slate-800 mb-6">1. Identificação do Cenário</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Empresa Alvo</label>
+                  <input type="text" name="empresa" value={formData.empresa} onChange={handleChange} className="w-full p-3 border rounded-lg bg-slate-50 focus:ring-2 focus:ring-blue-500" placeholder="Nome da empresa" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Área / Setor Avaliado</label>
+                  <input type="text" name="area" value={formData.area} onChange={handleChange} className="w-full p-3 border rounded-lg bg-slate-50 focus:ring-2 focus:ring-blue-500" placeholder="Ex: Engenharia, Suporte, Vendas" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Equipe de Consultoria (Alunos)</label>
+                  <textarea name="alunos" value={formData.alunos} onChange={handleChange} rows="2" className="w-full p-3 border rounded-lg bg-slate-50 focus:ring-2 focus:ring-blue-500" placeholder="Nomes dos integrantes..."></textarea>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PASSO 2: DIAGNÓSTICO 360 */}
+          {step === 2 && (
+            <div className="space-y-8 animate-fadeIn">
+              <h2 className="text-2xl font-bold text-slate-800 mb-2">2. Diagnóstico Estruturado (P-P-T)</h2>
+              <p className="text-slate-500 mb-6">Avalie o estado atual da área baseando-se nos três pilares fundamentais.</p>
+
+              <div className="space-y-6">
+                <div className="p-5 border border-l-4 border-l-amber-500 rounded-r-lg bg-amber-50">
+                  <label className="block text-lg font-bold text-amber-900 mb-2">Cultura e Pessoas</label>
+                  <p className="text-sm text-amber-700 mb-3">A equipe é colaborativa? Existe punição ao erro? As pessoas têm tempo para documentar?</p>
+                  <textarea name="diagPessoas" value={formData.diagPessoas} onChange={handleChange} rows="3" className="w-full p-3 border rounded-lg bg-white"></textarea>
+                </div>
+
+                <div className="p-5 border border-l-4 border-l-blue-500 rounded-r-lg bg-blue-50">
+                  <label className="block text-lg font-bold text-blue-900 mb-2">Processos e Rotinas</label>
+                  <p className="text-sm text-blue-700 mb-3">Como novos funcionários são treinados? Existem manuais, fluxogramas ou o processo está "na cabeça" dos seniores?</p>
+                  <textarea name="diagProcessos" value={formData.diagProcessos} onChange={handleChange} rows="3" className="w-full p-3 border rounded-lg bg-white"></textarea>
+                </div>
+
+                <div className="p-5 border border-l-4 border-l-emerald-500 rounded-r-lg bg-emerald-50">
+                  <label className="block text-lg font-bold text-emerald-900 mb-2">Infraestrutura Tecnológica</label>
+                  <p className="text-sm text-emerald-700 mb-3">Onde os dados vivem? Usam sistemas legados, planilhas perdidas, Google Workspace, repositórios estruturados?</p>
+                  <textarea name="diagTecnologia" value={formData.diagTecnologia} onChange={handleChange} rows="3" className="w-full p-3 border rounded-lg bg-white"></textarea>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Maturidade Geral em GC</label>
+                  <select name="nivelMaturidade" value={formData.nivelMaturidade} onChange={handleChange} className="w-full p-3 border rounded-lg bg-slate-50">
+                    <option value="1">Nível 1 - Caótico e dependente de indivíduos</option>
+                    <option value="2">Nível 2 - Reativo (documentam apenas quando há problema)</option>
+                    <option value="3">Nível 3 - Padronizado (existem repositórios e regras)</option>
+                    <option value="4">Nível 4 - Otimizado (cultura forte e tecnologia integrada)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PASSO 3: GAPS */}
+          {step === 3 && (
+            <div className="space-y-6 animate-fadeIn">
+              <h2 className="text-2xl font-bold text-slate-800 mb-2">3. Análise de Gaps e Impacto</h2>
+              <p className="text-slate-500 mb-6">Traduza o diagnóstico em problemas reais de negócio.</p>
+              
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Qual é o gargalo central identificado?</label>
+                <textarea name="gapPrincipal" value={formData.gapPrincipal} onChange={handleChange} rows="3" className="w-full p-3 border rounded-lg bg-slate-50" placeholder="Ex: Quando um analista sênior sai de férias, a produtividade da área cai 40% porque não há POPs..."></textarea>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Impacto no Negócio</label>
+                <textarea name="impactoNegocio" value={formData.impactoNegocio} onChange={handleChange} rows="2" className="w-full p-3 border rounded-lg bg-slate-50" placeholder="Ex: Aumento de custos, atraso em chamados, perda de clientes..."></textarea>
+              </div>
+            </div>
+          )}
+
+          {/* PASSO 4: ENGENHARIA DA IMPLANTAÇÃO */}
+          {step === 4 && (
+            <div className="space-y-6 animate-fadeIn">
+              <h2 className="text-2xl font-bold text-slate-800 mb-2">4. Engenharia da Implantação (Roadmap)</h2>
+              <p className="text-slate-500 mb-6">Desenhe como a solução será implantada na vida real, fase a fase.</p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-4 border rounded-lg shadow-sm">
+                  <h3 className="font-bold text-slate-800 mb-2">Fase 1: Sensibilização & Estratégia</h3>
+                  <p className="text-xs text-slate-500 mb-2">Como garantir o apoio da diretoria e engajar os usuários?</p>
+                  <textarea name="fase1Sensibilizacao" value={formData.fase1Sensibilizacao} onChange={handleChange} rows="3" className="w-full p-2 border rounded text-sm"></textarea>
+                </div>
+                
+                <div className="bg-white p-4 border rounded-lg shadow-sm">
+                  <h3 className="font-bold text-slate-800 mb-2">Fase 2: Arquitetura da Solução (SI)</h3>
+                  <p className="text-xs text-slate-500 mb-2">Qual portal, Wiki, IA ou ERP será usado? Como será estruturado?</p>
+                  <textarea name="fase2Arquitetura" value={formData.fase2Arquitetura} onChange={handleChange} rows="3" className="w-full p-2 border rounded text-sm"></textarea>
+                </div>
+
+                <div className="bg-white p-4 border rounded-lg shadow-sm">
+                  <h3 className="font-bold text-slate-800 mb-2">Fase 3: Piloto e Treinamento</h3>
+                  <p className="text-xs text-slate-500 mb-2">Onde começa o teste? Como será o treinamento da equipe?</p>
+                  <textarea name="fase3Piloto" value={formData.fase3Piloto} onChange={handleChange} rows="3" className="w-full p-2 border rounded text-sm"></textarea>
+                </div>
+
+                <div className="bg-white p-4 border rounded-lg shadow-sm">
+                  <h3 className="font-bold text-slate-800 mb-2">Fase 4: Sustentação e Governança</h3>
+                  <p className="text-xs text-slate-500 mb-2">Quem vai manter o conteúdo atualizado após 6 meses?</p>
+                  <textarea name="fase4Sustentacao" value={formData.fase4Sustentacao} onChange={handleChange} rows="3" className="w-full p-2 border rounded text-sm"></textarea>
+                </div>
+                
+                <div className="md:col-span-2 bg-slate-800 p-4 border rounded-lg shadow-sm text-white">
+                  <h3 className="font-bold mb-2">Métricas de Sucesso (KPIs)</h3>
+                  <p className="text-xs text-slate-300 mb-2">Como provar que o projeto deu certo? (Ex: Redução de tempo de onboarding de 30 para 15 dias)</p>
+                  <textarea name="kpis" value={formData.kpis} onChange={handleChange} rows="2" className="w-full p-2 border rounded text-sm bg-slate-700 text-white placeholder-slate-400"></textarea>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PASSO 5: RESULTADO FINAL (DASHBOARD) */}
+          {step === 5 && (
+            <div id="printArea" className="bg-white p-2 animate-fadeIn">
+              <div className="border-b-4 border-slate-800 pb-4 mb-6">
+                <h1 className="text-4xl font-extrabold text-slate-900 uppercase">Roadmap de Implantação GC</h1>
+                <p className="text-lg text-slate-600 mt-2"><strong>Cliente:</strong> {formData.empresa} | <strong>Setor:</strong> {formData.area}</p>
+                <p className="text-sm text-slate-500"><strong>Consultores:</strong> {formData.alunos}</p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-6 mb-8">
+                <div className="col-span-1 bg-slate-50 p-4 rounded-lg border">
+                  <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2">Resumo do Diagnóstico</h2>
+                  <div className="text-sm space-y-3">
+                    <p><strong>Cultura:</strong> {formData.diagPessoas}</p>
+                    <p><strong>Processos:</strong> {formData.diagProcessos}</p>
+                    <p><strong>Tecnologia Atual:</strong> {formData.diagTecnologia}</p>
+                    <p className="mt-4 inline-block bg-slate-800 text-white px-3 py-1 rounded-full text-xs font-bold">
+                      Maturidade Nível {formData.nivelMaturidade}
+                    </p>
+                  </div>
+                </div>
+                <div className="col-span-2 bg-red-50 p-4 rounded-lg border border-red-100">
+                  <h2 className="text-xl font-bold text-red-800 mb-2">Problema Central & Impacto</h2>
+                  <p className="text-red-900 font-medium mb-3">{formData.gapPrincipal}</p>
+                  <h3 className="font-bold text-red-800 text-sm">Risco ao Negócio:</h3>
+                  <p className="text-sm text-red-900">{formData.impactoNegocio}</p>
+                </div>
+              </div>
+
+              <h2 className="text-2xl font-bold text-slate-800 mb-6 uppercase">Plano de Ação Faseado</h2>
+              <div className="relative border-l-4 border-blue-500 ml-4 space-y-8 pb-8">
+                
+                <div className="ml-6 relative">
+                  <div className="absolute -left-9 top-0 bg-blue-500 w-6 h-6 rounded-full border-4 border-white"></div>
+                  <h3 className="font-bold text-lg text-slate-800">Fase 1: Sensibilização</h3>
+                  <p className="text-slate-600 mt-1">{formData.fase1Sensibilizacao}</p>
+                </div>
+
+                <div className="ml-6 relative">
+                  <div className="absolute -left-9 top-0 bg-blue-500 w-6 h-6 rounded-full border-4 border-white"></div>
+                  <h3 className="font-bold text-lg text-slate-800">Fase 2: Arquitetura de SI</h3>
+                  <p className="text-slate-600 mt-1">{formData.fase2Arquitetura}</p>
+                </div>
+
+                <div className="ml-6 relative">
+                  <div className="absolute -left-9 top-0 bg-blue-500 w-6 h-6 rounded-full border-4 border-white"></div>
+                  <h3 className="font-bold text-lg text-slate-800">Fase 3: Piloto e Treinamento</h3>
+                  <p className="text-slate-600 mt-1">{formData.fase3Piloto}</p>
+                </div>
+
+                <div className="ml-6 relative">
+                  <div className="absolute -left-9 top-0 bg-blue-500 w-6 h-6 rounded-full border-4 border-white"></div>
+                  <h3 className="font-bold text-lg text-slate-800">Fase 4: Governança (Sustentação)</h3>
+                  <p className="text-slate-600 mt-1">{formData.fase4Sustentacao}</p>
+                </div>
+              </div>
+
+              <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200 mt-4">
+                <h3 className="font-bold text-emerald-800 mb-2">Métricas de Acompanhamento (KPIs)</h3>
+                <p className="text-sm text-emerald-900">{formData.kpis}</p>
+              </div>
+
+            </div>
+          )}
+
+          {/* FOOTER BOTOES */}
+          <div className="mt-8 pt-6 border-t border-slate-200 flex justify-between">
+            {step > 1 && step < 5 ? (
+              <button onClick={prevStep} className="px-6 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-lg transition">Voltar</button>
+            ) : <div></div>}
+            
+            {step < 4 ? (
+              <button onClick={nextStep} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg shadow hover:bg-blue-700 transition">Avançar</button>
+            ) : step === 4 ? (
+              <button onClick={nextStep} className="px-6 py-2 bg-emerald-600 text-white font-bold rounded-lg shadow hover:bg-emerald-700 transition">Gerar Roadmap do Projeto</button>
+            ) : (
+              <button onClick={() => window.print()} className="px-6 py-2 bg-slate-800 text-white font-bold rounded-lg shadow hover:bg-slate-900 transition">Exportar PDF</button>
+            )}
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
