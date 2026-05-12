@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Info, Lightbulb, ClipboardCheck, Rocket, AlertTriangle, Scale, ShieldCheck, Save, Users, Eye } from 'lucide-react';
+import { Plus, Trash2, Info, Lightbulb, ClipboardCheck, Rocket, AlertTriangle, Scale, ShieldCheck, Save, Users, Eye, Link } from 'lucide-react';
 import { db } from '../firebase';
-import { collection, addDoc, doc, updateDoc, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp, getDocs, query, orderBy, getDoc } from 'firebase/firestore';
 
 // LOGOS
 import uniaraLogo from '../assets/uniaralogo.jpg';
@@ -9,7 +9,7 @@ import gbxLogo from '../assets/gbxlogo.jpg';
 
 export default function GCLabPro() {
   const [step, setStep] = useState(1);
-  const [docId, setDocId] = useState(null); // ID do projeto no Firebase
+  const [docId, setDocId] = useState(null);
   const [tempAluno, setTempAluno] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -32,25 +32,53 @@ export default function GCLabPro() {
     tecnologia: ["Silos no WhatsApp", "Sistemas difíceis", "Sem base central", "Busca ineficiente", "Muitas planilhas"]
   };
 
+  // VERIFICA SE EXISTE UM LINK DE COMPARTILHAMENTO AO ABRIR O APP
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id');
+    if (id) {
+      carregarProjetoPeloId(id);
+    }
+  }, []);
+
+  // FUNÇÃO PARA PUXAR PROJETO DO FIREBASE
+  const carregarProjetoPeloId = async (idDigitado) => {
+    if (!idDigitado) return;
+    try {
+      const docRef = doc(db, "projetos_gc", idDigitado);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        setFormData(docSnap.data());
+        setDocId(docSnap.id);
+        alert("✅ Projeto do grupo carregado com sucesso!");
+      } else {
+        alert("❌ Projeto não encontrado. Verifique o código.");
+      }
+    } catch (e) {
+      console.error("Erro ao carregar projeto: ", e);
+      alert("Erro de conexão com o banco de dados.");
+    }
+  };
+
+  // FUNÇÃO PARA COPIAR O LINK PARA O WHATSAPP
+  const copiarLinkDoGrupo = () => {
+    const url = `${window.location.origin}?id=${docId}`;
+    navigator.clipboard.writeText(url);
+    alert(`🔗 Link copiado!\n\nEnvie no grupo do WhatsApp. Quem clicar já entra neste projeto automaticamente.`);
+  };
+
   // FUNÇÃO PARA SALVAR NO FIREBASE
   const salvarNoFirebase = async (proximoPasso) => {
     setIsSaving(true);
     try {
       if (!docId) {
-        // Criar novo documento no primeiro passo
-        const docRef = await addDoc(collection(db, "projetos_gc"), {
-          ...formData,
-          createdAt: serverTimestamp(),
-          status: 'em_andamento'
-        });
+        const docRef = await addDoc(collection(db, "projetos_gc"), { ...formData, createdAt: serverTimestamp(), status: 'em_andamento' });
         setDocId(docRef.id);
+        // Atualiza a URL silenciosamente para evitar perder o ID se recarregar a página
+        window.history.replaceState(null, '', `?id=${docRef.id}`);
       } else {
-        // Atualizar documento existente
         const docRef = doc(db, "projetos_gc", docId);
-        await updateDoc(docRef, {
-          ...formData,
-          updatedAt: serverTimestamp()
-        });
+        await updateDoc(docRef, { ...formData, updatedAt: serverTimestamp() });
       }
       if (proximoPasso) setStep(proximoPasso);
     } catch (e) {
@@ -60,10 +88,9 @@ export default function GCLabPro() {
     setIsSaving(false);
   };
 
-  // FUNÇÃO PARA O PROFESSOR VER OS PROJETOS
   const carregarProjetosProfessor = async () => {
     const senha = prompt("Digite a senha do professor:");
-    if (senha === "uniara2024") { // <--- ALTERE SUA SENHA AQUI
+    if (senha === "uniara2024") {
       const q = query(collection(db, "projetos_gc"), orderBy("createdAt", "desc"));
       const querySnapshot = await getDocs(q);
       const docs = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -88,7 +115,6 @@ export default function GCLabPro() {
   const addAluno = () => { if (tempAluno && formData.alunos.length < 6) { setFormData({ ...formData, alunos: [...formData.alunos, tempAluno] }); setTempAluno(""); } };
   const removeAluno = (index) => { setFormData({ ...formData, alunos: formData.alunos.filter((_, i) => i !== index) }); };
 
-  // ESTILOS BRUTALISTAS
   const inputStyle = "w-full p-3 border-4 border-black bg-white focus:bg-yellow-100 outline-none shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-all font-bold text-black text-sm";
   const btnBrutal = "px-6 py-3 border-4 border-black font-black uppercase shadow-[4px_4px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all flex items-center gap-2";
 
@@ -106,7 +132,7 @@ export default function GCLabPro() {
                 <div>
                   <p className="text-2xl font-black uppercase">{p.empresa || "Sem Nome"}</p>
                   <p className="font-bold text-gray-600 italic">Área: {p.area} | Membros: {p.alunos?.join(", ")}</p>
-                  <p className="text-xs mt-2 bg-black text-white px-2 inline-block">Maturidade: Nível {p.nivelMaturidade}</p>
+                  <p className="text-xs mt-2 bg-black text-white px-2 inline-block">ID: {p.id}</p>
                 </div>
                 <button onClick={() => { setFormData(p); setDocId(p.id); setShowAdmin(false); setStep(5); }} className={`${btnBrutal} bg-cyan-400`}>
                   <Eye size={20} /> Abrir Diagnóstico
@@ -133,7 +159,12 @@ export default function GCLabPro() {
                 <p className="text-black font-bold text-xs bg-white inline-block px-2 border-2 border-black">MÉTODO DE IMPLANTAÇÃO</p>
              </div>
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-4 items-center">
+            {docId && (
+              <button onClick={copiarLinkDoGrupo} className="bg-white text-black p-2 border-2 border-black text-xs uppercase font-black flex items-center gap-2 shadow-[2px_2px_0px_black] active:translate-y-1 active:translate-x-1 active:shadow-none hover:bg-cyan-200 transition-all">
+                <Link size={16} /> Copiar Link da Equipe
+              </button>
+            )}
             <button onClick={carregarProjetosProfessor} className="bg-black text-white p-2 border-2 border-white text-[10px] uppercase font-bold flex items-center gap-1">
               <Users size={14} /> Professor
             </button>
@@ -142,13 +173,25 @@ export default function GCLabPro() {
         </div>
 
         <div className="p-6 md:p-10 bg-gray-50">
-          
-          {/* MENSAGEM DE SALVAMENTO */}
           {isSaving && <div className="fixed top-5 right-5 bg-black text-lime-400 p-4 border-4 border-lime-400 font-black z-50 animate-pulse">SALVANDO NA NUVEM...</div>}
 
-          {/* PASSO 1: IDENTIFICAÇÃO */}
           {step === 1 && (
             <div className="space-y-6">
+              
+              {/* CAMPO PARA ENTRAR EM PROJETO EXISTENTE (Só aparece se ainda não tiver um ID) */}
+              {!docId && (
+                <div className="border-4 border-black p-4 bg-orange-100 shadow-[4px_4px_0px_black] flex flex-col md:flex-row justify-between items-center gap-4">
+                  <div>
+                    <h3 className="font-black uppercase text-lg">Já tem um projeto?</h3>
+                    <p className="text-xs font-bold">Cole o código da sua equipe para continuar de onde pararam.</p>
+                  </div>
+                  <div className="flex w-full md:w-auto">
+                    <input type="text" id="inputCodigo" placeholder="Cole o código..." className="p-2 border-4 border-black outline-none font-bold text-sm w-full" />
+                    <button onClick={() => carregarProjetoPeloId(document.getElementById('inputCodigo').value)} className="bg-black text-white px-4 font-black uppercase text-sm border-y-4 border-r-4 border-black">Entrar</button>
+                  </div>
+                </div>
+              )}
+
               <div className="p-4 border-4 border-black bg-cyan-200 flex gap-3 shadow-[4px_4px_0px_black]">
                 <Info size={32} />
                 <p className="font-bold text-sm">PROFESSOR: Foquem em um problema real onde a falta de conhecimento gera prejuízo.</p>
@@ -180,7 +223,6 @@ export default function GCLabPro() {
             </div>
           )}
 
-          {/* PASSO 2: DIAGNÓSTICO (ESTRUTURA RESUMIDA PARA CABER NO EXEMPLO) */}
           {step === 2 && (
              <div className="space-y-6">
                 <div className="p-4 border-4 border-black bg-cyan-200 flex gap-3 shadow-[4px_4px_0px_black]"><Lightbulb size={32} /><p className="font-bold text-sm">AUDITORIA: Avalie os riscos de Pessoas, Processos e Tecnologia.</p></div>
@@ -198,7 +240,6 @@ export default function GCLabPro() {
              </div>
           )}
 
-          {/* PASSO 3: GAPS */}
           {step === 3 && (
             <div className="space-y-6">
               <div className="p-4 border-4 border-black bg-cyan-200 flex gap-3 shadow-[4px_4px_0px_black]"><ClipboardCheck size={32} /><p className="font-bold text-sm italic uppercase">Resuma o diagnóstico em uma frase de impacto.</p></div>
@@ -209,7 +250,6 @@ export default function GCLabPro() {
             </div>
           )}
 
-          {/* PASSO 4: ROADMAP */}
           {step === 4 && (
             <div className="space-y-8">
               <div className="p-4 border-4 border-black bg-cyan-200 flex gap-3 shadow-[4px_4px_0px_black]"><Rocket size={32} /><p className="font-bold text-sm uppercase">DESENHE O PLANO: Divida a implantação em 4 fases críticas.</p></div>
@@ -240,7 +280,6 @@ export default function GCLabPro() {
             </div>
           )}
 
-          {/* PASSO 5: RESULTADO */}
           {step === 5 && (
             <div id="printArea" className="bg-white p-10 border-8 border-black font-mono">
                <div className="flex justify-between items-center mb-8 border-b-8 border-black pb-6">
@@ -270,7 +309,6 @@ export default function GCLabPro() {
             </div>
           )}
 
-          {/* NAVEGAÇÃO */}
           <div className="mt-12 flex justify-between gap-4 no-print">
             {step > 1 && step < 5 ? (
               <button onClick={() => setStep(step - 1)} className={`${btnBrutal} bg-white`}>Voltar</button>
@@ -288,23 +326,10 @@ export default function GCLabPro() {
               </button>
             ) : (
               <div className="flex gap-4">
-                <button onClick={() => salvarNoFirebase()} className={`${btnBrutal} bg-yellow-400`}><Save /> Salvar Final</button>
                 <button onClick={() => window.print()} className={`${btnBrutal} bg-black text-white`}>Imprimir PDF</button>
               </div>
             )}
           </div>
-        </div>
-
-        {/* FOOTER */}
-        <div className="bg-black text-white p-6 flex justify-between items-center font-mono">
-           <img src={gbxLogo} className="h-8 grayscale invert border-2 border-white" />
-           <div className="text-[9px] max-w-sm uppercase leading-relaxed text-gray-400">
-             Propriedade Intelectual da GBX Learning Tools licenciada para Uniara. Uso estritamente acadêmico. © 2026.
-           </div>
-           <div className="flex gap-2 items-center bg-gray-800 p-2 border-2 border-gray-600">
-              <ShieldCheck className="text-lime-400" />
-              <span className="text-[10px] font-black text-lime-400 uppercase">Ambiente Seguro</span>
-           </div>
         </div>
       </div>
     </div>
