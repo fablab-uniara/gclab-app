@@ -15,11 +15,9 @@ export default function GCLabPro() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [projetosRemotos, setProjetosRemotos] = useState([]);
   
+  // ESTADO ATUALIZADO COM O CAMPO "nomeGrupo"
   const [formData, setFormData] = useState({
-    const [formData, setFormData] = useState({
-    nomeGrupo: '', // NOVO CAMPO
-    empresa: '', area: '', alunos: [],
-    empresa: '', area: '', alunos: [],
+    nomeGrupo: '', empresa: '', area: '', alunos: [],
     qPessoasSaida: '', qPessoasErro: '', diagPessoasTags: [], diagPessoasObs: '',
     qProcessosTreinamento: '', qProcessosAtualizacao: '', diagProcessosTags: [], diagProcessosObs: '',
     qTecnologiaBusca: '', qTecnologiaSilos: '', diagTecnologiaTags: [], diagTecnologiaObs: '',
@@ -91,6 +89,7 @@ export default function GCLabPro() {
     setIsSaving(false);
   };
 
+  // PAINEL DO PROFESSOR (LISTAGEM DE PROJETOS)
   const carregarProjetosProfessor = async () => {
     const senha = prompt("Digite a senha do professor:");
     if (senha === "uniara2024") {
@@ -133,7 +132,10 @@ export default function GCLabPro() {
             {projetosRemotos.map(p => (
               <div key={p.id} className="border-4 border-black p-6 bg-yellow-50 shadow-[6px_6px_0px_black] flex justify-between items-center">
                 <div>
-                  <p className="text-2xl font-black uppercase">{p.empresa || "Sem Nome"}</p>
+                  {/* EXIBIÇÃO DO NOME DO GRUPO NO PAINEL */}
+                  <p className="text-2xl font-black uppercase">
+                    {p.nomeGrupo ? `${p.nomeGrupo} - ${p.empresa}` : p.empresa || "Sem Nome"}
+                  </p>
                   <p className="font-bold text-gray-600 italic">Área: {p.area} | Membros: {p.alunos?.join(", ")}</p>
                   <p className="text-xs mt-2 bg-black text-white px-2 inline-block">ID: {p.id}</p>
                 </div>
@@ -181,7 +183,6 @@ export default function GCLabPro() {
           {step === 1 && (
             <div className="space-y-6">
               
-              {/* CAMPO PARA ENTRAR EM PROJETO EXISTENTE (Só aparece se ainda não tiver um ID) */}
               {!docId && (
                 <div className="border-4 border-black p-4 bg-orange-100 shadow-[4px_4px_0px_black] flex flex-col md:flex-row justify-between items-center gap-4">
                   <div>
@@ -199,24 +200,23 @@ export default function GCLabPro() {
                 <Info size={32} />
                 <p className="font-bold text-sm">PROFESSOR: Foquem em um problema real onde a falta de conhecimento gera prejuízo.</p>
               </div>
+              
+              {/* LAYOUT ATUALIZADO (3 COLUNAS) COM O NOME DO GRUPO */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-1">
-                  <label className="font-black uppercase block mb-1">Grupo / Consultoria</label>
+                  <label className="font-black uppercase block mb-1 text-[11px]">Grupo / Consultoria</label>
                   <input type="text" name="nomeGrupo" value={formData.nomeGrupo} onChange={handleChange} className={inputStyle} placeholder="Ex: Alpha" />
                 </div>
                 <div>
-                  <label className="font-black uppercase block mb-1">Empresa</label>
-                  <input type="text" name="empresa" value={formData.empresa} onChange={handleChange} className={inputStyle} />
+                  <label className="font-black uppercase block mb-1 text-[11px]">Empresa Analisada</label>
+                  <input type="text" name="empresa" value={formData.empresa} onChange={handleChange} className={inputStyle} placeholder="Ex: Uniara" />
                 </div>
                 <div>
-                  <label className="font-black uppercase block mb-1">Área</label>
-                  <input type="text" name="area" value={formData.area} onChange={handleChange} className={inputStyle} />
+                  <label className="font-black uppercase block mb-1 text-[11px]">Área Foco</label>
+                  <input type="text" name="area" value={formData.area} onChange={handleChange} className={inputStyle} placeholder="Ex: TI" />
                 </div>
-                <div>
-                  <label className="font-black uppercase block mb-1">Área</label>
-                  <input type="text" name="area" value={formData.area} onChange={handleChange} className={inputStyle} />
-                </div>
-                <div className="md:col-span-2 border-4 border-black p-4 bg-white">
+
+                <div className="md:col-span-3 border-4 border-black p-4 bg-white mt-4">
                   <label className="font-black uppercase block mb-2 text-lg italic">Equipe ({formData.alunos.length}/6)</label>
                   <div className="flex gap-2 mb-4">
                     <input type="text" value={tempAluno} onChange={(e) => setTempAluno(e.target.value)} className={inputStyle} placeholder="Nome do aluno..." />
