@@ -16,6 +16,9 @@ export default function GCLabPro() {
   const [projetosRemotos, setProjetosRemotos] = useState([]);
   
   const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState({
+    nomeGrupo: '', // NOVO CAMPO
+    empresa: '', area: '', alunos: [],
     empresa: '', area: '', alunos: [],
     qPessoasSaida: '', qPessoasErro: '', diagPessoasTags: [], diagPessoasObs: '',
     qProcessosTreinamento: '', qProcessosAtualizacao: '', diagProcessosTags: [], diagProcessosObs: '',
@@ -196,10 +199,18 @@ export default function GCLabPro() {
                 <Info size={32} />
                 <p className="font-bold text-sm">PROFESSOR: Foquem em um problema real onde a falta de conhecimento gera prejuízo.</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="md:col-span-1">
+                  <label className="font-black uppercase block mb-1">Grupo / Consultoria</label>
+                  <input type="text" name="nomeGrupo" value={formData.nomeGrupo} onChange={handleChange} className={inputStyle} placeholder="Ex: Alpha" />
+                </div>
                 <div>
                   <label className="font-black uppercase block mb-1">Empresa</label>
                   <input type="text" name="empresa" value={formData.empresa} onChange={handleChange} className={inputStyle} />
+                </div>
+                <div>
+                  <label className="font-black uppercase block mb-1">Área</label>
+                  <input type="text" name="area" value={formData.area} onChange={handleChange} className={inputStyle} />
                 </div>
                 <div>
                   <label className="font-black uppercase block mb-1">Área</label>
