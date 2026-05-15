@@ -1,8 +1,8 @@
 // Arquivo: src/firebase.js
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
-// COLE AS SUAS CHAVES AQUI DENTRO (Apague estas de exemplo)
 const firebaseConfig = {
   apiKey: "AIzaSyCgk7eac29L3GldvxoajwNWUumMSG1Mdr8",
   authDomain: "gclab-uniara.firebaseapp.com",
@@ -14,3 +14,4 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+export const storage = getStorage(app);
