@@ -267,6 +267,27 @@ export default function GCLabPro() {
                 <div className="bg-lime-100 p-4 border-4 border-black"><h4 className="font-black mb-2 uppercase">Fase 4: Sustentação</h4><input type="text" name="f4NovaRotina" value={formData.f4NovaRotina} onChange={handleChange} className={inputStyle} /></div>
               </div>
 
+              <div className="p-6 bg-white border-4 border-black">
+                 <h3 className="text-xl font-black uppercase mb-4 flex items-center gap-2"><UploadCloud size={24} /> Evidência de Campo</h3>
+                 {!formData.evidenciaUrl ? (
+                   <label className="cursor-pointer bg-black text-white px-6 py-4 font-black uppercase flex justify-center items-center gap-2 border-4 border-black">
+                     <UploadCloud size={20} /> Anexar Foto/Documento
+                     <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleFileUpload} />
+                   </label>
+                 ) : (
+                   <div className="bg-lime-400 p-4 border-4 border-black font-black uppercase flex justify-between items-center">
+                     ✅ ARQUIVO ANEXADO
+                     <a href={formData.evidenciaUrl} target="_blank" rel="noreferrer" className="text-xs bg-black text-white px-3 py-2 border-2 border-white">Ver</a>
+                   </div>
+                 )}
+              </div>
+
+              <div className="p-6 bg-red-400 border-4 border-black space-y-3 font-bold">
+                 <label className="flex items-center gap-3"><input type="checkbox" name="chkOrcamento" checked={formData.chkOrcamento} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> Recurso disponível?</label>
+                 <label className="flex items-center gap-3"><input type="checkbox" name="chkTempo" checked={formData.chkTempo} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> Tempo na rotina?</label>
+                 <label className="flex items-center gap-3"><input type="checkbox" name="chkManutencao" checked={formData.chkManutencao} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> Resolve a dor?</label>
+              </div>
+
               {/* PAINEL DA IA - CONSELHO EXECUTIVO */}
               <div className="border-8 border-black p-6 bg-black text-white shadow-[8px_8px_0px_#ff00ff]">
                 <div className="flex items-center gap-3 mb-4">
@@ -291,28 +312,8 @@ export default function GCLabPro() {
                   {isIAWait ? "PROCESSANDO PARECER..." : "SUBMETER AO CONSELHO (IA)"}
                 </button>
               </div>
-
-              <div className="p-6 bg-white border-4 border-black">
-                 <h3 className="text-xl font-black uppercase mb-4 flex items-center gap-2"><UploadCloud size={24} /> Evidência de Campo</h3>
-                 {!formData.evidenciaUrl ? (
-                   <label className="cursor-pointer bg-black text-white px-6 py-4 font-black uppercase flex justify-center items-center gap-2 border-4 border-black">
-                     <UploadCloud size={20} /> Anexar Foto/Documento
-                     <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleFileUpload} />
-                   </label>
-                 ) : (
-                   <div className="bg-lime-400 p-4 border-4 border-black font-black uppercase flex justify-between items-center">
-                     ✅ ARQUIVO ANEXADO
-                     <a href={formData.evidenciaUrl} target="_blank" rel="noreferrer" className="text-xs bg-black text-white px-3 py-2 border-2 border-white">Ver</a>
-                   </div>
-                 )}
-              </div>
-
-              <div className="p-6 bg-red-400 border-4 border-black space-y-3 font-bold">
-                 <label className="flex items-center gap-3"><input type="checkbox" name="chkOrcamento" checked={formData.chkOrcamento} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> Recurso disponível?</label>
-                 <label className="flex items-center gap-3"><input type="checkbox" name="chkTempo" checked={formData.chkTempo} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> Tempo na rotina?</label>
-                 <label className="flex items-center gap-3"><input type="checkbox" name="chkManutencao" checked={formData.chkManutencao} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> Resolve a dor?</label>
-              </div>
             </div>
+            
           )}
 
           {step === 5 && (
