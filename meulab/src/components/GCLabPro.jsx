@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Info, Lightbulb, ClipboardCheck, Rocket, AlertTriangle, Scale, ShieldCheck, Save, Users, Eye, Link } from 'lucide-react';
-import { db } from '../firebase';
+import { Plus, Trash2, Info, Lightbulb, ClipboardCheck, Rocket, UploadCloud, Link, Users, Eye } from 'lucide-react';
+import { db, storage } from '../firebase';
 import { collection, addDoc, doc, updateDoc, serverTimestamp, getDocs, query, orderBy, getDoc } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 // LOGOS
 import uniaraLogo from '../assets/uniaralogo.jpg';
@@ -13,9 +14,10 @@ export default function GCLabPro() {
   const [tempAluno, setTempAluno] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [isAdminAuth, setIsAdminAuth] = useState(false); // NOVO: Memória de login do professor
   const [projetosRemotos, setProjetosRemotos] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
   
-  // ESTADO ATUALIZADO COM O CAMPO "nomeGrupo"
   const [formData, setFormData] = useState({
     nomeGrupo: '', empresa: '', area: '', alunos: [],
     qPessoasSaida: '', qPessoasErro: '', diagPessoasTags: [], diagPessoasObs: '',
@@ -24,7 +26,8 @@ export default function GCLabPro() {
     nivelMaturidade: '1', gapPrincipal: '', impactoNegocio: '',
     f1Patrocinador: '', f1AcaoEngajamento: '', f2Ferramenta: '', f2ResponsavelTI: '',
     f3SetorPiloto: '', f3CriterioSucesso: '', f4NovaRotina: '', f4DonoProcesso: '',
-    chkOrcamento: false, chkTempo: false, chkManutencao: false
+    chkOrcamento: false, chkTempo: false, chkManutencao: false,
+    evidenciaUrl: ''
   });
 
   const presets = {
@@ -33,16 +36,12 @@ export default function GCLabPro() {
     tecnologia: ["Silos no WhatsApp", "Sistemas difíceis", "Sem base central", "Busca ineficiente", "Muitas planilhas"]
   };
 
-  // VERIFICA SE EXISTE UM LINK DE COMPARTILHAMENTO AO ABRIR O APP
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
-    if (id) {
-      carregarProjetoPeloId(id);
-    }
+    if (id) carregarProjetoPeloId(id);
   }, []);
 
-  // FUNÇÃO PARA PUXAR PROJETO DO FIREBASE
   const carregarProjetoPeloId = async (idDigitado) => {
     if (!idDigitado) return;
     try {
@@ -56,26 +55,23 @@ export default function GCLabPro() {
         alert("❌ Projeto não encontrado. Verifique o código.");
       }
     } catch (e) {
-      console.error("Erro ao carregar projeto: ", e);
+      console.error(e);
       alert("Erro de conexão com o banco de dados.");
     }
   };
 
-  // FUNÇÃO PARA COPIAR O LINK PARA O WHATSAPP
   const copiarLinkDoGrupo = () => {
     const url = `${window.location.origin}?id=${docId}`;
     navigator.clipboard.writeText(url);
-    alert(`🔗 Link copiado!\n\nEnvie no grupo do WhatsApp. Quem clicar já entra neste projeto automaticamente.`);
+    alert(`🔗 Link copiado!\n\nEnvie no grupo do WhatsApp.`);
   };
 
-  // FUNÇÃO PARA SALVAR NO FIREBASE
   const salvarNoFirebase = async (proximoPasso) => {
     setIsSaving(true);
     try {
       if (!docId) {
         const docRef = await addDoc(collection(db, "projetos_gc"), { ...formData, createdAt: serverTimestamp(), status: 'em_andamento' });
         setDocId(docRef.id);
-        // Atualiza a URL silenciosamente para evitar perder o ID se recarregar a página
         window.history.replaceState(null, '', `?id=${docRef.id}`);
       } else {
         const docRef = doc(db, "projetos_gc", docId);
@@ -83,24 +79,57 @@ export default function GCLabPro() {
       }
       if (proximoPasso) setStep(proximoPasso);
     } catch (e) {
-      console.error("Erro ao salvar: ", e);
+      console.error(e);
       alert("Erro de conexão com o banco de dados.");
     }
     setIsSaving(false);
   };
 
-  // PAINEL DO PROFESSOR (LISTAGEM DE PROJETOS)
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const fileRef = ref(storage, `evidencias_gc/${docId}_${file.name}`);
+    const uploadTask = uploadBytesResumable(fileRef, file);
+
+    setIsSaving(true);
+    uploadTask.on('state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        setUploadProgress(progress);
+      },
+      (error) => {
+        console.error(error);
+        alert("Erro ao enviar a evidência. Tente novamente.");
+        setIsSaving(false);
+      },
+      () => {
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+          setFormData({ ...formData, evidenciaUrl: downloadURL });
+          setIsSaving(false);
+          setUploadProgress(0);
+          updateDoc(doc(db, "projetos_gc", docId), { evidenciaUrl: downloadURL, updatedAt: serverTimestamp() });
+        });
+      }
+    );
+  };
+
   const carregarProjetosProfessor = async () => {
-    const senha = prompt("Digite a senha do professor:");
-    if (senha === "uniara2024") {
-      const q = query(collection(db, "projetos_gc"), orderBy("createdAt", "desc"));
-      const querySnapshot = await getDocs(q);
-      const docs = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      setProjetosRemotos(docs);
-      setShowAdmin(true);
-    } else {
-      alert("Senha incorreta!");
+    // Se o professor não estiver logado, pede a senha. Se já estiver, vai direto!
+    if (!isAdminAuth) {
+      const senha = prompt("Digite a senha do professor:");
+      if (senha !== "uniara2024") {
+        alert("Senha incorreta!");
+        return;
+      }
+      setIsAdminAuth(true);
     }
+
+    const q = query(collection(db, "projetos_gc"), orderBy("createdAt", "desc"));
+    const querySnapshot = await getDocs(q);
+    const docs = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    setProjetosRemotos(docs);
+    setShowAdmin(true);
   };
 
   const handleChange = (e) => {
@@ -120,27 +149,28 @@ export default function GCLabPro() {
   const inputStyle = "w-full p-3 border-4 border-black bg-white focus:bg-yellow-100 outline-none shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-all font-bold text-black text-sm";
   const btnBrutal = "px-6 py-3 border-4 border-black font-black uppercase shadow-[4px_4px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all flex items-center gap-2";
 
+  // TELA 1: PAINEL DE CONTROLE DO PROFESSOR
   if (showAdmin) {
     return (
-      <div className="min-h-screen bg-pink-500 p-10">
-        <div className="max-w-6xl mx-auto bg-white border-8 border-black p-8 shadow-[15px_15px_0px_black]">
-          <div className="flex justify-between items-center mb-10 border-b-8 border-black pb-4">
-             <h1 className="text-5xl font-black uppercase">Painel do Professor</h1>
+      <div className="min-h-screen bg-pink-500 p-4 md:p-10">
+        <div className="max-w-6xl mx-auto bg-white border-8 border-black p-4 md:p-8 shadow-[15px_15px_0px_black]">
+          <div className="flex flex-col md:flex-row justify-between items-center mb-10 border-b-8 border-black pb-4 gap-4">
+             <h1 className="text-3xl md:text-5xl font-black uppercase text-center md:text-left">Painel do Professor</h1>
              <button onClick={() => setShowAdmin(false)} className={`${btnBrutal} bg-red-400`}>Sair</button>
           </div>
           <div className="grid grid-cols-1 gap-6">
             {projetosRemotos.map(p => (
-              <div key={p.id} className="border-4 border-black p-6 bg-yellow-50 shadow-[6px_6px_0px_black] flex justify-between items-center">
+              <div key={p.id} className="border-4 border-black p-6 bg-yellow-50 shadow-[6px_6px_0px_black] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                  {/* EXIBIÇÃO DO NOME DO GRUPO NO PAINEL */}
-                  <p className="text-2xl font-black uppercase">
-                    {p.nomeGrupo ? `${p.nomeGrupo} - ${p.empresa}` : p.empresa || "Sem Nome"}
-                  </p>
+                  <p className="text-2xl font-black uppercase">{p.nomeGrupo ? `${p.nomeGrupo} - ${p.empresa}` : p.empresa || "Sem Nome"}</p>
                   <p className="font-bold text-gray-600 italic">Área: {p.area} | Membros: {p.alunos?.join(", ")}</p>
-                  <p className="text-xs mt-2 bg-black text-white px-2 inline-block">ID: {p.id}</p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <span className="text-xs bg-black text-white px-2 py-1 inline-block">ID: {p.id}</span>
+                    {p.evidenciaUrl && <a href={p.evidenciaUrl} target="_blank" rel="noreferrer" className="text-xs bg-lime-400 text-black font-bold px-2 py-1 border-2 border-black">✅ Tem Evidência</a>}
+                  </div>
                 </div>
-                <button onClick={() => { setFormData(p); setDocId(p.id); setShowAdmin(false); setStep(5); }} className={`${btnBrutal} bg-cyan-400`}>
-                  <Eye size={20} /> Abrir Diagnóstico
+                <button onClick={() => { setFormData(p); setDocId(p.id); setShowAdmin(false); setStep(5); }} className={`${btnBrutal} bg-cyan-400 w-full md:w-auto justify-center`}>
+                  <Eye size={20} /> Abrir
                 </button>
               </div>
             ))}
@@ -150,44 +180,58 @@ export default function GCLabPro() {
     );
   }
 
+  // TELA 2: APLICATIVO PADRÃO
   return (
     <div className="min-h-screen bg-pink-500 p-4 md:p-10 font-sans selection:bg-yellow-400 selection:text-black">
       <div className="max-w-5xl mx-auto bg-white border-4 border-black shadow-[12px_12px_0px_rgba(0,0,0,1)]">
         
-        {/* HEADER */}
+        {/* HEADER RESPONSIVO */}
         <div className="bg-yellow-400 p-6 border-b-4 border-black flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-4">
-             <img src={uniaraLogo} alt="Uniara" className="h-16 w-auto border-4 border-black bg-white" />
+             <img src={uniaraLogo} alt="Uniara" className="h-12 md:h-16 w-auto border-4 border-black bg-white" />
              <div className="h-16 w-1 bg-black hidden md:block"></div>
              <div>
-                <h1 className="text-4xl font-black uppercase tracking-tighter text-black">GC-LAB 4.0</h1>
-                <p className="text-black font-bold text-xs bg-white inline-block px-2 border-2 border-black">MÉTODO DE IMPLANTAÇÃO</p>
+                <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-black">GC-LAB 4.0</h1>
+                <p className="text-black font-bold text-[10px] md:text-xs bg-white inline-block px-2 border-2 border-black">MÉTODO DE IMPLANTAÇÃO</p>
              </div>
           </div>
-          <div className="flex flex-wrap gap-4 items-center">
+          
+          <div className="flex flex-wrap justify-center gap-3 items-center">
             {docId && (
               <button onClick={copiarLinkDoGrupo} className="bg-white text-black p-2 border-2 border-black text-xs uppercase font-black flex items-center gap-2 shadow-[2px_2px_0px_black] active:translate-y-1 active:translate-x-1 active:shadow-none hover:bg-cyan-200 transition-all">
-                <Link size={16} /> Copiar Link da Equipe
+                <Link size={16} /> Copiar Link
               </button>
             )}
-            <button onClick={carregarProjetosProfessor} className="bg-black text-white p-2 border-2 border-white text-[10px] uppercase font-bold flex items-center gap-1">
-              <Users size={14} /> Professor
-            </button>
-            <div className="font-black text-xl text-black bg-white px-4 py-2 border-4 border-black shadow-[4px_4px_0px_black]">ETAPA {step}/5</div>
+
+            {/* BOTÃO DO PROFESSOR INTELIGENTE */}
+            {isAdminAuth ? (
+               <button onClick={carregarProjetosProfessor} className="bg-purple-600 text-white p-2 border-2 border-black text-xs uppercase font-black flex items-center gap-2 shadow-[2px_2px_0px_black] active:translate-y-1 active:translate-x-1 active:shadow-none transition-all">
+                 📋 Voltar ao Painel
+               </button>
+            ) : (
+               <button onClick={carregarProjetosProfessor} className="bg-black text-white p-2 border-2 border-white text-[10px] uppercase font-bold flex items-center gap-1">
+                 <Users size={14} /> Professor
+               </button>
+            )}
+
+            <div className="font-black text-lg md:text-xl text-black bg-white px-3 py-2 md:px-4 md:py-2 border-4 border-black shadow-[4px_4px_0px_black]">ETAPA {step}/5</div>
           </div>
         </div>
 
-        <div className="p-6 md:p-10 bg-gray-50">
-          {isSaving && <div className="fixed top-5 right-5 bg-black text-lime-400 p-4 border-4 border-lime-400 font-black z-50 animate-pulse">SALVANDO NA NUVEM...</div>}
+        <div className="p-4 md:p-10 bg-gray-50">
+          
+          {/* TOAST DE SALVAMENTO NOVO: Fica no canto inferior direito para não bloquear a visão */}
+          {isSaving && <div className="fixed bottom-5 right-5 bg-black text-lime-400 p-4 border-4 border-lime-400 font-black z-50 animate-pulse shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+            {uploadProgress > 0 ? `ENVIANDO EVIDÊNCIA: ${Math.round(uploadProgress)}%` : 'SALVANDO NA NUVEM...'}
+          </div>}
 
           {step === 1 && (
             <div className="space-y-6">
-              
               {!docId && (
                 <div className="border-4 border-black p-4 bg-orange-100 shadow-[4px_4px_0px_black] flex flex-col md:flex-row justify-between items-center gap-4">
                   <div>
                     <h3 className="font-black uppercase text-lg">Já tem um projeto?</h3>
-                    <p className="text-xs font-bold">Cole o código da sua equipe para continuar de onde pararam.</p>
+                    <p className="text-xs font-bold">Cole o código da sua equipe para continuar.</p>
                   </div>
                   <div className="flex w-full md:w-auto">
                     <input type="text" id="inputCodigo" placeholder="Cole o código..." className="p-2 border-4 border-black outline-none font-bold text-sm w-full" />
@@ -195,38 +239,20 @@ export default function GCLabPro() {
                   </div>
                 </div>
               )}
-
-              <div className="p-4 border-4 border-black bg-cyan-200 flex gap-3 shadow-[4px_4px_0px_black]">
-                <Info size={32} />
-                <p className="font-bold text-sm">PROFESSOR: Foquem em um problema real onde a falta de conhecimento gera prejuízo.</p>
-              </div>
-              
-              {/* LAYOUT ATUALIZADO (3 COLUNAS) COM O NOME DO GRUPO */}
+              <div className="p-4 border-4 border-black bg-cyan-200 flex gap-3 shadow-[4px_4px_0px_black]"><Info size={32} className="shrink-0" /><p className="font-bold text-sm">PROFESSOR: Foquem em um problema real onde a falta de conhecimento gera prejuízo.</p></div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-1">
-                  <label className="font-black uppercase block mb-1 text-[11px]">Grupo / Consultoria</label>
-                  <input type="text" name="nomeGrupo" value={formData.nomeGrupo} onChange={handleChange} className={inputStyle} placeholder="Ex: Alpha" />
-                </div>
-                <div>
-                  <label className="font-black uppercase block mb-1 text-[11px]">Empresa Analisada</label>
-                  <input type="text" name="empresa" value={formData.empresa} onChange={handleChange} className={inputStyle} placeholder="Ex: Uniara" />
-                </div>
-                <div>
-                  <label className="font-black uppercase block mb-1 text-[11px]">Área Foco</label>
-                  <input type="text" name="area" value={formData.area} onChange={handleChange} className={inputStyle} placeholder="Ex: TI" />
-                </div>
-
+                <div className="md:col-span-1"><label className="font-black uppercase block mb-1 text-[11px]">Grupo / Consultoria</label><input type="text" name="nomeGrupo" value={formData.nomeGrupo} onChange={handleChange} className={inputStyle} placeholder="Ex: Alpha" /></div>
+                <div><label className="font-black uppercase block mb-1 text-[11px]">Empresa Analisada</label><input type="text" name="empresa" value={formData.empresa} onChange={handleChange} className={inputStyle} placeholder="Ex: Uniara" /></div>
+                <div><label className="font-black uppercase block mb-1 text-[11px]">Área Foco</label><input type="text" name="area" value={formData.area} onChange={handleChange} className={inputStyle} placeholder="Ex: TI" /></div>
                 <div className="md:col-span-3 border-4 border-black p-4 bg-white mt-4">
                   <label className="font-black uppercase block mb-2 text-lg italic">Equipe ({formData.alunos.length}/6)</label>
                   <div className="flex gap-2 mb-4">
                     <input type="text" value={tempAluno} onChange={(e) => setTempAluno(e.target.value)} className={inputStyle} placeholder="Nome do aluno..." />
                     <button onClick={addAluno} className="bg-lime-400 px-6 border-4 border-black font-black">+</button>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {formData.alunos.map((aluno, i) => (
-                      <div key={i} className="flex justify-between items-center bg-gray-100 border-2 border-black p-2 font-bold uppercase text-xs">
-                        {aluno} <button onClick={() => removeAluno(i)} className="text-red-600"><Trash2 size={16}/></button>
-                      </div>
+                      <div key={i} className="flex justify-between items-center bg-gray-100 border-2 border-black p-2 font-bold uppercase text-xs">{aluno} <button onClick={() => removeAluno(i)} className="text-red-600"><Trash2 size={16}/></button></div>
                     ))}
                   </div>
                 </div>
@@ -236,7 +262,7 @@ export default function GCLabPro() {
 
           {step === 2 && (
              <div className="space-y-6">
-                <div className="p-4 border-4 border-black bg-cyan-200 flex gap-3 shadow-[4px_4px_0px_black]"><Lightbulb size={32} /><p className="font-bold text-sm">AUDITORIA: Avalie os riscos de Pessoas, Processos e Tecnologia.</p></div>
+                <div className="p-4 border-4 border-black bg-cyan-200 flex gap-3 shadow-[4px_4px_0px_black]"><Lightbulb size={32} className="shrink-0" /><p className="font-bold text-sm">AUDITORIA: Avalie os riscos de Pessoas, Processos e Tecnologia.</p></div>
                 {['pessoas', 'processos', 'tecnologia'].map(pilar => (
                   <div key={pilar} className="p-4 border-4 border-black bg-white shadow-[4px_4px_0px_black]">
                     <h3 className="font-black uppercase mb-4 text-xl underline italic">{pilar}</h3>
@@ -253,7 +279,7 @@ export default function GCLabPro() {
 
           {step === 3 && (
             <div className="space-y-6">
-              <div className="p-4 border-4 border-black bg-cyan-200 flex gap-3 shadow-[4px_4px_0px_black]"><ClipboardCheck size={32} /><p className="font-bold text-sm italic uppercase">Resuma o diagnóstico em uma frase de impacto.</p></div>
+              <div className="p-4 border-4 border-black bg-cyan-200 flex gap-3 shadow-[4px_4px_0px_black]"><ClipboardCheck size={32} className="shrink-0" /><p className="font-bold text-sm italic uppercase">Resuma o diagnóstico em uma frase de impacto.</p></div>
               <div className="border-4 border-black p-6 bg-red-100">
                 <label className="font-black uppercase block mb-2">Problema Central (A Dor do Negócio)</label>
                 <textarea name="gapPrincipal" value={formData.gapPrincipal} onChange={handleChange} className={inputStyle} rows="4"></textarea>
@@ -263,25 +289,30 @@ export default function GCLabPro() {
 
           {step === 4 && (
             <div className="space-y-8">
-              <div className="p-4 border-4 border-black bg-cyan-200 flex gap-3 shadow-[4px_4px_0px_black]"><Rocket size={32} /><p className="font-bold text-sm uppercase">DESENHE O PLANO: Divida a implantação em 4 fases críticas.</p></div>
+              <div className="p-4 border-4 border-black bg-cyan-200 flex gap-3 shadow-[4px_4px_0px_black]"><Rocket size={32} className="shrink-0" /><p className="font-bold text-sm uppercase">DESENHE O PLANO: Divida a implantação em 4 fases críticas.</p></div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-purple-100 p-4 border-4 border-black shadow-[4px_4px_0px_black]">
-                   <h4 className="font-black mb-2 uppercase underline">Fase 1: Sensibilização</h4>
-                   <input type="text" name="f1AcaoEngajamento" value={formData.f1AcaoEngajamento} onChange={handleChange} className={inputStyle} placeholder="Ação de engajamento..." />
-                </div>
-                <div className="bg-orange-100 p-4 border-4 border-black shadow-[4px_4px_0px_black]">
-                   <h4 className="font-black mb-2 uppercase underline">Fase 2: Arquitetura SI</h4>
-                   <input type="text" name="f2Ferramenta" value={formData.f2Ferramenta} onChange={handleChange} className={inputStyle} placeholder="Ferramenta escolhida..." />
-                </div>
-                <div className="bg-pink-100 p-4 border-4 border-black shadow-[4px_4px_0px_black]">
-                   <h4 className="font-black mb-2 uppercase underline">Fase 3: Piloto</h4>
-                   <input type="text" name="f3SetorPiloto" value={formData.f3SetorPiloto} onChange={handleChange} className={inputStyle} placeholder="Setor de teste..." />
-                </div>
-                <div className="bg-lime-100 p-4 border-4 border-black shadow-[4px_4px_0px_black]">
-                   <h4 className="font-black mb-2 uppercase underline">Fase 4: Governança</h4>
-                   <input type="text" name="f4NovaRotina" value={formData.f4NovaRotina} onChange={handleChange} className={inputStyle} placeholder="Dono do processo..." />
-                </div>
+                <div className="bg-purple-100 p-4 border-4 border-black shadow-[4px_4px_0px_black]"><h4 className="font-black mb-2 uppercase underline">Fase 1: Sensibilização</h4><input type="text" name="f1AcaoEngajamento" value={formData.f1AcaoEngajamento} onChange={handleChange} className={inputStyle} placeholder="Ação de engajamento..." /></div>
+                <div className="bg-orange-100 p-4 border-4 border-black shadow-[4px_4px_0px_black]"><h4 className="font-black mb-2 uppercase underline">Fase 2: Arquitetura SI</h4><input type="text" name="f2Ferramenta" value={formData.f2Ferramenta} onChange={handleChange} className={inputStyle} placeholder="Ferramenta escolhida..." /></div>
+                <div className="bg-pink-100 p-4 border-4 border-black shadow-[4px_4px_0px_black]"><h4 className="font-black mb-2 uppercase underline">Fase 3: Piloto</h4><input type="text" name="f3SetorPiloto" value={formData.f3SetorPiloto} onChange={handleChange} className={inputStyle} placeholder="Setor de teste..." /></div>
+                <div className="bg-lime-100 p-4 border-4 border-black shadow-[4px_4px_0px_black]"><h4 className="font-black mb-2 uppercase underline">Fase 4: Governança</h4><input type="text" name="f4NovaRotina" value={formData.f4NovaRotina} onChange={handleChange} className={inputStyle} placeholder="Dono do processo..." /></div>
               </div>
+              
+              <div className="p-6 bg-white border-4 border-black mt-8">
+                 <h3 className="text-xl font-black uppercase italic mb-4 flex items-center gap-2"><UploadCloud size={24} /> Prova de Campo (Obrigatório)</h3>
+                 <p className="text-sm font-bold mb-4">Anexe uma evidência do contato com a empresa (ex: foto no local, print de reunião, ou documento de análise).</p>
+                 {!formData.evidenciaUrl ? (
+                   <label className="cursor-pointer bg-black text-white px-6 py-4 font-black uppercase flex justify-center items-center gap-2 border-4 border-black hover:bg-gray-800 transition-all text-center">
+                     <UploadCloud size={20} className="hidden md:block" /> Escolher Arquivo / Foto
+                     <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleFileUpload} />
+                   </label>
+                 ) : (
+                   <div className="bg-lime-400 p-4 border-4 border-black font-black uppercase flex flex-col md:flex-row justify-between items-center gap-2 text-center">
+                     ✅ EVIDÊNCIA ANEXADA
+                     <a href={formData.evidenciaUrl} target="_blank" rel="noreferrer" className="text-xs bg-black text-white px-3 py-2 border-2 border-white">Visualizar</a>
+                   </div>
+                 )}
+              </div>
+
               <div className="p-6 bg-red-400 border-4 border-black mt-8 flex flex-col gap-3 font-bold">
                  <h3 className="text-xl font-black uppercase italic">Validadores de Viabilidade</h3>
                  <label className="flex items-center gap-3"><input type="checkbox" name="chkOrcamento" checked={formData.chkOrcamento} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> Há recurso para a ferramenta?</label>
@@ -292,53 +323,60 @@ export default function GCLabPro() {
           )}
 
           {step === 5 && (
-            <div id="printArea" className="bg-white p-10 border-8 border-black font-mono">
-               <div className="flex justify-between items-center mb-8 border-b-8 border-black pb-6">
-                  <img src={gbxLogo} className="h-10 grayscale invert border-2 border-black" />
-                  <h1 className="text-3xl font-black uppercase text-center bg-black text-white p-4 grow mx-10">Roadmap Executivo GC</h1>
-                  <img src={uniaraLogo} className="h-10 border-2 border-black" />
+            <div id="printArea" className="bg-white p-4 md:p-10 border-4 md:border-8 border-black font-mono">
+               <div className="flex flex-col md:flex-row justify-between items-center mb-8 border-b-8 border-black pb-6 gap-4">
+                  <img src={gbxLogo} className="h-10 grayscale invert border-2 border-black hidden md:block" />
+                  <h1 className="text-xl md:text-3xl font-black uppercase text-center bg-black text-white p-4 grow w-full md:w-auto md:mx-10">Roadmap Executivo GC</h1>
+                  <img src={uniaraLogo} className="h-10 border-2 border-black hidden md:block" />
                </div>
                <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4 border-4 border-black p-4 bg-gray-50 font-black uppercase italic">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-4 border-black p-4 bg-gray-50 font-black uppercase italic">
                      <p>Cliente: {formData.empresa}</p>
                      <p>Equipe: {formData.alunos.join(", ")}</p>
                   </div>
                   <div className="border-4 border-black p-4 bg-red-100">
                     <h3 className="font-black uppercase mb-2 underline">Problema Central:</h3>
-                    <p className="font-bold">{formData.gapPrincipal}</p>
+                    <p className="font-bold text-sm md:text-base">{formData.gapPrincipal}</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                     <div className="border-4 border-black p-4 bg-purple-50"><p className="font-black uppercase italic mb-1">Fase 1: Sensibilização</p><p className="text-xs">{formData.f1AcaoEngajamento}</p></div>
-                     <div className="border-4 border-black p-4 bg-orange-50"><p className="font-black uppercase italic mb-1">Fase 2: Arquitetura</p><p className="text-xs">{formData.f2Ferramenta}</p></div>
-                     <div className="border-4 border-black p-4 bg-pink-50"><p className="font-black uppercase italic mb-1">Fase 3: Piloto</p><p className="text-xs">{formData.f3SetorPiloto}</p></div>
-                     <div className="border-4 border-black p-4 bg-lime-50"><p className="font-black uppercase italic mb-1">Fase 4: Governança</p><p className="text-xs">{formData.f4NovaRotina}</p></div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div className="border-4 border-black p-4 bg-purple-50"><p className="font-black uppercase italic mb-1">Fase 1</p><p className="text-xs font-bold">{formData.f1AcaoEngajamento}</p></div>
+                     <div className="border-4 border-black p-4 bg-orange-50"><p className="font-black uppercase italic mb-1">Fase 2</p><p className="text-xs font-bold">{formData.f2Ferramenta}</p></div>
+                     <div className="border-4 border-black p-4 bg-pink-50"><p className="font-black uppercase italic mb-1">Fase 3</p><p className="text-xs font-bold">{formData.f3SetorPiloto}</p></div>
+                     <div className="border-4 border-black p-4 bg-lime-50"><p className="font-black uppercase italic mb-1">Fase 4</p><p className="text-xs font-bold">{formData.f4NovaRotina}</p></div>
                   </div>
-                  <div className="border-4 border-black p-4 bg-black text-white text-center text-xs font-bold italic uppercase tracking-widest leading-loose">
-                    Validação Concluída via Framework GBX Learning Tools para Uniara - Sistemas de Informação
+                  
+                  {formData.evidenciaUrl && (
+                    <div className="border-4 border-black p-4 flex flex-col md:flex-row justify-between items-center bg-gray-100 font-bold text-xs uppercase gap-2 text-center">
+                      <span>Anexo de Validação em Campo Localizado</span>
+                      <a href={formData.evidenciaUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">Acessar Arquivo</a>
+                    </div>
+                  )}
+
+                  <div className="border-4 border-black p-4 bg-black text-white text-center text-[10px] md:text-xs font-bold italic uppercase tracking-widest leading-loose">
+                    Validação Concluída via Framework GBX Learning Tools
                   </div>
                </div>
             </div>
           )}
 
-          <div className="mt-12 flex justify-between gap-4 no-print">
-            {step > 1 && step < 5 ? (
-              <button onClick={() => setStep(step - 1)} className={`${btnBrutal} bg-white`}>Voltar</button>
-            ) : <div></div>}
+          {/* NAVEGAÇÃO DE RODAPÉ */}
+          <div className="mt-12 flex flex-col-reverse md:flex-row justify-between gap-4 no-print">
+            {step > 1 ? (
+              <button onClick={() => setStep(step - 1)} className={`${btnBrutal} bg-white justify-center`}>Voltar</button>
+            ) : <div className="hidden md:block"></div>}
             
             {step < 4 ? (
-              <button onClick={() => salvarNoFirebase(step + 1)} className={`${btnBrutal} bg-cyan-400`}>Avançar &gt;</button>
+              <button onClick={() => salvarNoFirebase(step + 1)} className={`${btnBrutal} bg-cyan-400 justify-center`}>Avançar &gt;</button>
             ) : step === 4 ? (
               <button 
                 onClick={() => salvarNoFirebase(5)} 
-                disabled={!(formData.chkOrcamento && formData.chkTempo && formData.chkManutencao)}
-                className={`${btnBrutal} bg-lime-400 disabled:opacity-50`}
+                disabled={!(formData.chkOrcamento && formData.chkTempo && formData.chkManutencao && formData.evidenciaUrl)}
+                className={`${btnBrutal} bg-lime-400 disabled:opacity-50 justify-center`}
               >
                 Gerar Projeto Executivo
               </button>
             ) : (
-              <div className="flex gap-4">
-                <button onClick={() => window.print()} className={`${btnBrutal} bg-black text-white`}>Imprimir PDF</button>
-              </div>
+              <button onClick={() => window.print()} className={`${btnBrutal} bg-black text-white justify-center`}>Imprimir PDF</button>
             )}
           </div>
         </div>
