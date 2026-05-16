@@ -3,7 +3,6 @@ export default async function handler(req, res) {
   
   const { prompt } = req.body;
   
-  // O truque: Tenta puxar a variável nova OU a antiga (VITE_) que já estava configurada
   const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 
   if (!apiKey) {
@@ -11,7 +10,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    // ATENÇÃO AQUI: Mudamos para gemini-1.5-flash-latest
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -19,7 +19,6 @@ export default async function handler(req, res) {
     
     const data = await response.json();
     
-    // Tratamento extra caso o Google recuse a chave
     if (data.error) {
       return res.status(500).json({ error: `Erro do Google: ${data.error.message}` });
     }
