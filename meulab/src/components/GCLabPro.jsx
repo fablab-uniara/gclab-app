@@ -102,7 +102,6 @@ export default function GCLabPro() {
     }
 
     setIsIAWait(true);
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     const prompt = `Aja como um conselho executivo socrático rigoroso. 
     Analise este projeto de Gestão do Conhecimento:
     - Empresa: ${formData.empresa}
@@ -116,12 +115,17 @@ export default function GCLabPro() {
     Seja direto, crítico e use tom profissional. Não dê parabéns.`;
 
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      // Chama a nossa rota local interna da Vercel
+      const response = await fetch('/api/validar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        body: JSON.stringify({ prompt })
       });
+      
       const data = await response.json();
+      
+      if (data.error) throw new Error(data.error);
+
       const textoIA = data.candidates[0].content.parts[0].text;
       setFeedbackConselho(textoIA);
       setFormData(prev => ({ ...prev, feedbackIA: textoIA }));
