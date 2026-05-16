@@ -216,6 +216,22 @@ export default function GCLabPro() {
 
           {step === 1 && (
             <div className="space-y-6">
+              
+              {/* CAIXA DE CÓDIGO RESTAURADA */}
+              {!docId && (
+                <div className="border-4 border-black p-4 bg-orange-100 shadow-[4px_4px_0px_black] flex flex-col md:flex-row justify-between items-center gap-4">
+                  <div>
+                    <h3 className="font-black uppercase text-lg">Já tem um projeto?</h3>
+                    <p className="text-xs font-bold">Cole o código da sua equipe para continuar.</p>
+                  </div>
+                  <div className="flex w-full md:w-auto">
+                    <input type="text" id="inputCodigo" placeholder="Cole o código..." className="p-2 border-4 border-black outline-none font-bold text-sm w-full" />
+                    <button onClick={() => carregarProjetoPeloId(document.getElementById('inputCodigo').value)} className="bg-black text-white px-4 font-black uppercase text-sm border-y-4 border-r-4 border-black hover:bg-gray-800 transition-all">Entrar</button>
+                  </div>
+                </div>
+              )}
+
+              {/* FORMULÁRIO DE DADOS DA EQUIPE */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-1"><label className="font-black uppercase text-[11px]">Grupo</label><input type="text" name="nomeGrupo" value={formData.nomeGrupo} onChange={handleChange} className={inputStyle} /></div>
                 <div><label className="font-black uppercase text-[11px]">Empresa</label><input type="text" name="empresa" value={formData.empresa} onChange={handleChange} className={inputStyle} /></div>
@@ -225,10 +241,15 @@ export default function GCLabPro() {
                 <label className="font-black uppercase block mb-2 italic">Equipe</label>
                 <div className="flex gap-2 mb-4">
                   <input type="text" value={tempAluno} onChange={(e) => setTempAluno(e.target.value)} className={inputStyle} />
-                  <button onClick={addAluno} className="bg-lime-400 px-6 border-4 border-black font-black">+</button>
+                  <button onClick={addAluno} className="bg-lime-400 px-6 border-4 border-black font-black hover:bg-lime-500 transition-all">+</button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  {formData.alunos.map((aluno, i) => <div key={i} className="bg-gray-100 border-2 border-black p-2 font-bold text-xs uppercase">{aluno}</div>)}
+                  {formData.alunos.map((aluno, i) => (
+                    <div key={i} className="flex justify-between items-center bg-gray-100 border-2 border-black p-2 font-bold text-xs uppercase">
+                      {aluno}
+                      <button onClick={() => removeAluno(i)} className="text-red-600 hover:scale-110 transition-all"><Trash2 size={16}/></button>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
