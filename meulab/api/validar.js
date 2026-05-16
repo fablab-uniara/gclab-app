@@ -3,19 +3,17 @@ export default async function handler(req, res) {
   
   const { prompt } = req.body;
   
-  // Puxa a chave de onde ela estiver
   const rawApiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 
   if (!rawApiKey) {
     return res.status(500).json({ error: 'Chave API não encontrada na Vercel.' });
   }
 
-  // A MÁGICA AQUI: O .trim() remove os espaços invisíveis e quebras de linha!
   const apiKey = rawApiKey.trim();
 
   try {
-    // Voltamos para o robô oficial e mais rápido
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    // A GRANDE CORREÇÃO: Usando a versão atualizada do modelo em 2026 (2.5-flash)
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
