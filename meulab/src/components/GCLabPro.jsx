@@ -48,16 +48,29 @@ export default function GCLabPro() {
 
   const carregarProjetoPeloId = async (idDigitado) => {
     if (!idDigitado) return;
+    
+    // Tratamento caso o aluno cole a URL inteira por engano em vez de só o código
+    const cleanId = idDigitado.includes('?id=') 
+      ? idDigitado.split('?id=')[1].split('&')[0].trim() 
+      : idDigitado.trim();
+
     try {
-      const docRef = doc(db, "projetos_gc", idDigitado);
+      const docRef = doc(db, "projetos_gc", cleanId);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const data = docSnap.data();
         setFormData(data);
         setDocId(docSnap.id);
         if(data.feedbackIA) setFeedbackConselho(data.feedbackIA);
+        // Sincroniza a URL do navegador do novo membro para não perder o projeto
+        window.history.replaceState(null, '', `?id=${docSnap.id}`);
+      } else {
+        alert("Código ou Link do projeto não encontrado! Verifique se foi digitado corretamente.");
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+      console.error(e); 
+      alert("Erro ao conectar com o banco de dados.");
+    }
   };
 
   const copiarLinkDoGrupo = () => {
@@ -82,7 +95,6 @@ export default function GCLabPro() {
     setIsSaving(false);
   };
 
-  // FUNÇÃO DO CONSELHO (IA)
   const validarComConselho = async () => {
     if (!formData.f1AcaoEngajamento || !formData.f2Ferramenta) {
       alert("Preencha o plano de implantação antes de consultar o conselho!");
@@ -165,6 +177,11 @@ export default function GCLabPro() {
 
   const addAluno = () => { if (tempAluno && formData.alunos.length < 6) { setFormData({ ...formData, alunos: [...formData.alunos, tempAluno] }); setTempAluno(""); } };
   
+  // FUNÇÃO DE REMOVER ALUNO DEVIDAMENTE DECLARADA
+  const removeAluno = (index) => {
+    setFormData({ ...formData, alunos: formData.alunos.filter((_, i) => i !== index) });
+  };
+
   const inputStyle = "w-full p-3 border-4 border-black bg-white focus:bg-yellow-100 outline-none shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-all font-bold text-black text-sm";
   const btnBrutal = "px-6 py-3 border-4 border-black font-black uppercase shadow-[4px_4px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all flex items-center gap-2";
 
@@ -196,18 +213,28 @@ export default function GCLabPro() {
     <div className="min-h-screen bg-pink-500 p-4 md:p-10 font-sans">
       <div className="max-w-5xl mx-auto bg-white border-4 border-black shadow-[12px_12px_0px_rgba(0,0,0,1)]">
         
+        {/* CABEÇALHO COM BOTÕES DE LINK E PROFESSOR ALINHADOS */}
         <div className="bg-yellow-400 p-6 border-b-4 border-black flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-4">
              <img src={uniaraLogo} alt="Uniara" className="h-12 border-4 border-black bg-white" />
              <div>
-                <h1 className="text-3xl font-black uppercase">GC-LAB 4.0</h1>
-                <p className="text-black font-bold text-[10px] bg-white px-2 border-2 border-black">CONSELHO IA ATIVADO</p>
+                <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-black">GC-LAB 4.0</h1>
+                <p className="text-black font-bold text-[10px] md:text-xs bg-white inline-block px-2 border-2 border-black">CONSELHO IA ATIVADO</p>
              </div>
           </div>
-          <div className="flex gap-3">
-            {docId && <button onClick={copiarLinkDoGrupo} className="bg-white p-2 border-2 border-black text-xs font-black flex items-center gap-2 shadow-[2px_2px_0px_black]">Link</button>}
-            <button onClick={carregarProjetosProfessor} className={`p-2 border-2 border-black text-xs font-black shadow-[2px_2px_0px_black] ${isAdminAuth ? 'bg-purple-600 text-white' : 'bg-black text-white'}`}>Professor</button>
-            <div className="font-black text-xl bg-white px-4 py-2 border-4 border-black">ETAPA {step}/5</div>
+          
+          <div className="flex flex-wrap justify-center gap-3 items-center">
+            {docId && (
+              <button onClick={copiarLinkDoGrupo} className="bg-white text-black p-2 border-2 border-black text-xs uppercase font-black flex items-center gap-2 shadow-[2px_2px_0px_black] active:translate-y-1 active:translate-x-1 active:shadow-none hover:bg-cyan-200 transition-all">
+                <Link size={16} /> Copiar Link
+              </button>
+            )}
+
+            <button onClick={carregarProjetosProfessor} className={`p-2 border-2 border-black text-xs uppercase font-black flex items-center gap-2 shadow-[2px_2px_0px_black] active:translate-y-1 active:translate-x-1 active:shadow-none transition-all ${isAdminAuth ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-black text-white hover:bg-gray-800'}`}>
+              {isAdminAuth ? "📋 Voltar ao Painel" : <><Users size={14} /> Professor</>}
+            </button>
+
+            <div className="font-black text-lg md:text-xl text-black bg-white px-3 py-2 border-4 border-black shadow-[4px_4px_0px_black]">ETAPA {step}/5</div>
           </div>
         </div>
 
@@ -217,21 +244,19 @@ export default function GCLabPro() {
           {step === 1 && (
             <div className="space-y-6">
               
-              {/* CAIXA DE CÓDIGO RESTAURADA */}
               {!docId && (
                 <div className="border-4 border-black p-4 bg-orange-100 shadow-[4px_4px_0px_black] flex flex-col md:flex-row justify-between items-center gap-4">
                   <div>
                     <h3 className="font-black uppercase text-lg">Já tem um projeto?</h3>
-                    <p className="text-xs font-bold">Cole o código da sua equipe para continuar.</p>
+                    <p className="text-xs font-bold">Cole o código ou o link completo da sua equipe para continuar.</p>
                   </div>
                   <div className="flex w-full md:w-auto">
-                    <input type="text" id="inputCodigo" placeholder="Cole o código..." className="p-2 border-4 border-black outline-none font-bold text-sm w-full" />
+                    <input type="text" id="inputCodigo" placeholder="Cole aqui..." className="p-2 border-4 border-black outline-none font-bold text-sm w-full" />
                     <button onClick={() => carregarProjetoPeloId(document.getElementById('inputCodigo').value)} className="bg-black text-white px-4 font-black uppercase text-sm border-y-4 border-r-4 border-black hover:bg-gray-800 transition-all">Entrar</button>
                   </div>
                 </div>
               )}
 
-              {/* FORMULÁRIO DE DADOS DA EQUIPE */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-1"><label className="font-black uppercase text-[11px]">Grupo</label><input type="text" name="nomeGrupo" value={formData.nomeGrupo} onChange={handleChange} className={inputStyle} /></div>
                 <div><label className="font-black uppercase text-[11px]">Empresa</label><input type="text" name="empresa" value={formData.empresa} onChange={handleChange} className={inputStyle} /></div>
@@ -288,6 +313,26 @@ export default function GCLabPro() {
                 <div className="bg-lime-100 p-4 border-4 border-black"><h4 className="font-black mb-2 uppercase">Fase 4: Sustentação</h4><input type="text" name="f4NovaRotina" value={formData.f4NovaRotina} onChange={handleChange} className={inputStyle} /></div>
               </div>
 
+              <div className="border-8 border-black p-6 bg-black text-white shadow-[8px_8px_0px_#ff00ff]">
+                <div className="flex items-center gap-3 mb-4">
+                  <ShieldCheck size={32} className="text-lime-400" />
+                  <h3 className="text-2xl font-black uppercase italic">Validação do Conselho Executivo</h3>
+                </div>
+                
+                {feedbackConselho ? (
+                  <div className="bg-white text-black p-4 border-4 border-lime-400 font-mono text-sm mb-4 leading-relaxed">
+                    <MessageSquareQuote className="mb-2 text-purple-600" size={24} />
+                    {feedbackConselho.split('\n').map((line, i) => <p key={i} className="mb-2">{line}</p>)}
+                  </div>
+                ) : (
+                  <p className="text-xs font-bold mb-4 text-gray-400 italic">O conselho aguarda o envio do plano para emitir o parecer técnico.</p>
+                )}
+
+                <button onClick={validarComConselho} disabled={isIAWait} className={`${btnBrutal} bg-lime-400 text-black w-full justify-center disabled:opacity-50`}>
+                  {isIAWait ? "PROCESSANDO PARECER..." : "SUBMETER AO CONSELHO (IA)"}
+                </button>
+              </div>
+
               <div className="p-6 bg-white border-4 border-black">
                  <h3 className="text-xl font-black uppercase mb-4 flex items-center gap-2"><UploadCloud size={24} /> Evidência de Campo</h3>
                  {!formData.evidenciaUrl ? (
@@ -308,33 +353,7 @@ export default function GCLabPro() {
                  <label className="flex items-center gap-3"><input type="checkbox" name="chkTempo" checked={formData.chkTempo} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> Tempo na rotina?</label>
                  <label className="flex items-center gap-3"><input type="checkbox" name="chkManutencao" checked={formData.chkManutencao} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> Resolve a dor?</label>
               </div>
-
-              {/* PAINEL DA IA - CONSELHO EXECUTIVO */}
-              <div className="border-8 border-black p-6 bg-black text-white shadow-[8px_8px_0px_#ff00ff]">
-                <div className="flex items-center gap-3 mb-4">
-                  <ShieldCheck size={32} className="text-lime-400" />
-                  <h3 className="text-2xl font-black uppercase italic">Validação do Conselho Executivo</h3>
-                </div>
-                
-                {feedbackConselho ? (
-                  <div className="bg-white text-black p-4 border-4 border-lime-400 font-mono text-sm mb-4 leading-relaxed">
-                    <MessageSquareQuote className="mb-2 text-purple-600" size={24} />
-                    {feedbackConselho.split('\n').map((line, i) => <p key={i} className="mb-2">{line}</p>)}
-                  </div>
-                ) : (
-                  <p className="text-xs font-bold mb-4 text-gray-400 italic">O conselho aguarda o envio do plano para emitir o parecer técnico.</p>
-                )}
-
-                <button 
-                  onClick={validarComConselho} 
-                  disabled={isIAWait}
-                  className={`${btnBrutal} bg-lime-400 text-black w-full justify-center disabled:opacity-50`}
-                >
-                  {isIAWait ? "PROCESSANDO PARECER..." : "SUBMETER AO CONSELHO (IA)"}
-                </button>
-              </div>
             </div>
-            
           )}
 
           {step === 5 && (
@@ -373,11 +392,7 @@ export default function GCLabPro() {
             {step < 4 ? (
               <button onClick={() => salvarNoFirebase(step + 1)} className={`${btnBrutal} bg-cyan-400`}>Avançar</button>
             ) : step === 4 ? (
-              <button 
-                onClick={() => salvarNoFirebase(5)} 
-                disabled={!(formData.chkOrcamento && formData.chkTempo && formData.chkManutencao && formData.evidenciaUrl && formData.feedbackIA)}
-                className={`${btnBrutal} bg-lime-400 disabled:opacity-50`}
-              >
+              <button onClick={() => salvarNoFirebase(5)} disabled={!(formData.chkOrcamento && formData.chkTempo && formData.chkManutencao && formData.evidenciaUrl && formData.feedbackIA)} className={`${btnBrutal} bg-lime-400 disabled:opacity-50`}>
                 Gerar Projeto Executivo
               </button>
             ) : (
