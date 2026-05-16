@@ -3,6 +3,7 @@ export default async function handler(req, res) {
   
   const { prompt } = req.body;
   
+  // A nossa leitura de chave à prova de falhas continua aqui
   const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 
   if (!apiKey) {
@@ -10,8 +11,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Usando o gemini-pro, que é o endereço principal e mais estável
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+    // O NOME EXATO E CORRETO DE VOLTA: gemini-1.5-flash
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
