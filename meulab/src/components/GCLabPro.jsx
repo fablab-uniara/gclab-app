@@ -437,7 +437,32 @@ export default function GCLabPro() {
                   </div>
                 </div>
               </div>
-              
+              {/* ======================================================= */}
+              {/* NOVO: ROTEIRO DO PITCH DE 2 MINUTOS */}
+              {/* ======================================================= */}
+              <div className="mb-8 mt-10 print:mt-8 page-break-inside-avoid">
+                <h3 className="text-blue-900 font-bold uppercase text-xs tracking-widest border-b border-gray-300 pb-2 mb-4">
+                  🎤 Roteiro de Pitch Sugerido (2 Minutos)
+                </h3>
+                <div className="bg-yellow-50 border border-yellow-200 p-5 rounded-sm">
+                  <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-3 font-bold">Leia e adapte para a apresentação oral:</p>
+                  
+                  <div className="space-y-3 text-sm text-gray-800">
+                    <p>
+                      <strong className="text-blue-900">1. O Gancho (15s):</strong> "Olá, somos a equipe <strong>{formData.nomeGrupo}</strong> e analisamos o setor de <strong>{formData.area}</strong> da <strong>{formData.empresa}</strong>."
+                    </p>
+                    <p>
+                      <strong className="text-blue-900">2. A Dor (30s):</strong> "Identificamos que o principal gargalo travando a produtividade hoje é: <em>{formData.gapPrincipal}</em>."
+                    </p>
+                    <p>
+                      <strong className="text-blue-900">3. A Solução (45s):</strong> "Para resolver isso, não basta só colocar sistema. Vamos começar engajando a equipe com <strong>{formData.f1AcaoEngajamento}</strong>. Em seguida, implementaremos a tecnologia <strong>{formData.f2Ferramenta}</strong>. Para garantir que funcione, faremos um piloto restrito no <strong>{formData.f3SetorPiloto}</strong>."
+                    </p>
+                    <p>
+                      <strong className="text-blue-900">4. A Viabilidade (30s):</strong> "Esse projeto é totalmente viável. Temos tempo na rotina garantido através de <em>{formData.justTempo}</em>, e ele se paga porque elimina diretamente a nossa dor central através de <em>{formData.justManutencao}</em>. Muito obrigado!"
+                    </p>
+                  </div>
+                </div>
+              </div>
               {/* ASSINATURA RODAPÉ */}
               <div className="mt-16 text-center text-[10px] text-gray-400 border-t border-gray-200 pt-6">
                 <p className="uppercase tracking-widest mb-1">Gerado pelo sistema GC-LAB 4.0 - Laboratório de Consultoria</p>
