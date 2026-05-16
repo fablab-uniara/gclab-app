@@ -18,11 +18,9 @@ export default function GCLabPro() {
   const [projetosRemotos, setProjetosRemotos] = useState([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   
-  // ESTADOS DA IA
   const [feedbackConselho, setFeedbackConselho] = useState("");
   const [isIAWait, setIsIAWait] = useState(false);
 
-  // ESTRUTURA DE DADOS COMPLETA COM AS JUSTIFICATIVAS DE VIABILIDADE
   const [formData, setFormData] = useState({
     nomeGrupo: '', empresa: '', area: '', alunos: [],
     qPessoasSaida: '', qPessoasErro: '', diagPessoasTags: [], diagPessoasObs: '',
@@ -51,12 +49,7 @@ export default function GCLabPro() {
 
   const carregarProjetoPeloId = async (idDigitado) => {
     if (!idDigitado) return;
-    
-    // Extrai o ID caso o aluno cole o link completo por engano
-    const cleanId = idDigitado.includes('?id=') 
-      ? idDigitado.split('?id=')[1].split('&')[0].trim() 
-      : idDigitado.trim();
-
+    const cleanId = idDigitado.includes('?id=') ? idDigitado.split('?id=')[1].split('&')[0].trim() : idDigitado.trim();
     try {
       const docRef = doc(db, "projetos_gc", cleanId);
       const docSnap = await getDoc(docRef);
@@ -102,7 +95,6 @@ export default function GCLabPro() {
       alert("Preencha o plano de implantação antes de consultar o conselho!");
       return;
     }
-
     setIsIAWait(true);
     const prompt = `Aja como um conselho executivo socrático rigoroso. 
     Analise este projeto de Gestão do Conhecimento:
@@ -122,10 +114,8 @@ export default function GCLabPro() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt })
       });
-      
       const data = await response.json();
       if (data.error) throw new Error(data.error);
-
       const textoIA = data.candidates[0].content.parts[0].text;
       setFeedbackConselho(textoIA);
       setFormData(prev => ({ ...prev, feedbackIA: textoIA }));
@@ -180,19 +170,16 @@ export default function GCLabPro() {
   };
 
   const addAluno = () => { if (tempAluno && formData.alunos.length < 6) { setFormData({ ...formData, alunos: [...formData.alunos, tempAluno] }); setTempAluno(""); } };
-  
-  const removeAluno = (index) => {
-    setFormData({ ...formData, alunos: formData.alunos.filter((_, i) => i !== index) });
-  };
+  const removeAluno = (index) => { setFormData({ ...formData, alunos: formData.alunos.filter((_, i) => i !== index) }); };
 
   const inputStyle = "w-full p-3 border-4 border-black bg-white focus:bg-yellow-100 outline-none shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-all font-bold text-black text-sm";
   const btnBrutal = "px-6 py-3 border-4 border-black font-black uppercase shadow-[4px_4px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all flex items-center gap-2";
 
   if (showAdmin) {
     return (
-      <div className="min-h-screen bg-pink-500 p-4 md:p-10">
-        <div className="max-w-6xl mx-auto bg-white border-8 border-black p-4 md:p-8 shadow-[15px_15px_0px_black]">
-          <div className="flex justify-between items-center mb-10 border-b-8 border-black pb-4">
+      <div className="min-h-screen bg-pink-500 p-4 md:p-10 print:bg-white print:p-0">
+        <div className="max-w-6xl mx-auto bg-white border-8 border-black p-4 md:p-8 shadow-[15px_15px_0px_black] print:border-none print:shadow-none">
+          <div className="flex justify-between items-center mb-10 border-b-8 border-black pb-4 print:hidden">
              <h1 className="text-3xl font-black uppercase">Painel Professor</h1>
              <button onClick={() => setShowAdmin(false)} className={`${btnBrutal} bg-red-400`}>Sair</button>
           </div>
@@ -213,11 +200,14 @@ export default function GCLabPro() {
   }
 
   return (
-    <div className="min-h-screen bg-pink-500 p-4 md:p-10 font-sans">
-      <div className="max-w-5xl mx-auto bg-white border-4 border-black shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+    // CLASSES DE IMPRESSÃO ADICIONADAS AQUI (print:bg-white print:p-0)
+    <div className="min-h-screen bg-pink-500 p-4 md:p-10 font-sans print:bg-white print:p-0">
+      
+      {/* MÁXIMA LARGURA E BORDAS DESATIVADAS NA IMPRESSÃO */}
+      <div className="max-w-5xl mx-auto bg-white border-4 border-black shadow-[12px_12px_0px_rgba(0,0,0,1)] print:border-none print:shadow-none print:max-w-none print:m-0">
         
-        {/* CABEÇALHO COMPLETO */}
-        <div className="bg-yellow-400 p-6 border-b-4 border-black flex flex-col md:flex-row justify-between items-center gap-6">
+        {/* CABEÇALHO DO JOGO (ESCONDIDO NA IMPRESSÃO) */}
+        <div className="bg-yellow-400 p-6 border-b-4 border-black flex flex-col md:flex-row justify-between items-center gap-6 print:hidden">
           <div className="flex items-center gap-4">
              <img src={uniaraLogo} alt="Uniara" className="h-12 border-4 border-black bg-white" />
              <div>
@@ -225,28 +215,24 @@ export default function GCLabPro() {
                 <p className="text-black font-bold text-[10px] md:text-xs bg-white inline-block px-2 border-2 border-black">CONSELHO IA ATIVADO</p>
              </div>
           </div>
-          
           <div className="flex flex-wrap justify-center gap-3 items-center">
             {docId && (
-              <button onClick={copiarLinkDoGrupo} className="bg-white text-black p-2 border-2 border-black text-xs uppercase font-black flex items-center gap-2 shadow-[2px_2px_0px_black] active:translate-y-1 active:translate-x-1 active:shadow-none hover:bg-cyan-200 transition-all">
+              <button onClick={copiarLinkDoGrupo} className="bg-white text-black p-2 border-2 border-black text-xs uppercase font-black flex items-center gap-2 shadow-[2px_2px_0px_black] active:translate-y-1 active:translate-x-1 hover:bg-cyan-200 transition-all">
                 <Link size={16} /> Copiar Link
               </button>
             )}
-
-            <button onClick={carregarProjetosProfessor} className={`p-2 border-2 border-black text-xs uppercase font-black flex items-center gap-2 shadow-[2px_2px_0px_black] active:translate-y-1 active:translate-x-1 active:shadow-none transition-all ${isAdminAuth ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-black text-white hover:bg-gray-800'}`}>
+            <button onClick={carregarProjetosProfessor} className={`p-2 border-2 border-black text-xs uppercase font-black flex items-center gap-2 shadow-[2px_2px_0px_black] active:translate-y-1 active:translate-x-1 transition-all ${isAdminAuth ? 'bg-purple-600 text-white' : 'bg-black text-white'}`}>
               {isAdminAuth ? "📋 Voltar ao Painel" : <><Users size={14} /> Professor</>}
             </button>
-
             <div className="font-black text-lg md:text-xl text-black bg-white px-3 py-2 border-4 border-black shadow-[4px_4px_0px_black]">ETAPA {step}/5</div>
           </div>
         </div>
 
-        <div className="p-4 md:p-10 bg-gray-50">
-          {isSaving && <div className="fixed bottom-5 right-5 bg-black text-lime-400 p-4 border-4 border-lime-400 font-black z-50">SALVANDO...</div>}
+        <div className="p-4 md:p-10 bg-gray-50 print:bg-white print:p-0">
+          {isSaving && <div className="fixed bottom-5 right-5 bg-black text-lime-400 p-4 border-4 border-lime-400 font-black z-50 print:hidden">SALVANDO...</div>}
 
-          {/* ETAPA 1 */}
           {step === 1 && (
-            <div className="space-y-6">
+            <div className="space-y-6 print:hidden">
               {!docId && (
                 <div className="border-4 border-black p-4 bg-orange-100 shadow-[4px_4px_0px_black] flex flex-col md:flex-row justify-between items-center gap-4">
                   <div>
@@ -259,7 +245,6 @@ export default function GCLabPro() {
                   </div>
                 </div>
               )}
-
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-1"><label className="font-black uppercase text-[11px]">Grupo</label><input type="text" name="nomeGrupo" value={formData.nomeGrupo} onChange={handleChange} className={inputStyle} /></div>
                 <div><label className="font-black uppercase text-[11px]">Empresa</label><input type="text" name="empresa" value={formData.empresa} onChange={handleChange} className={inputStyle} /></div>
@@ -283,9 +268,8 @@ export default function GCLabPro() {
             </div>
           )}
 
-          {/* ETAPA 2 */}
           {step === 2 && (
-             <div className="space-y-6">
+             <div className="space-y-6 print:hidden">
                 {['pessoas', 'processos', 'tecnologia'].map(pilar => (
                   <div key={pilar} className="p-4 border-4 border-black bg-white shadow-[4px_4px_0px_black]">
                     <h3 className="font-black uppercase mb-4 text-xl underline italic">{pilar}</h3>
@@ -299,9 +283,8 @@ export default function GCLabPro() {
              </div>
           )}
 
-          {/* ETAPA 3 */}
           {step === 3 && (
-            <div className="space-y-6">
+            <div className="space-y-6 print:hidden">
               <div className="border-4 border-black p-6 bg-red-100">
                 <label className="font-black uppercase block mb-2 text-xl">O Problema Central</label>
                 <textarea name="gapPrincipal" value={formData.gapPrincipal} onChange={handleChange} className={inputStyle} rows="4"></textarea>
@@ -309,9 +292,8 @@ export default function GCLabPro() {
             </div>
           )}
 
-          {/* ETAPA 4 */}
           {step === 4 && (
-            <div className="space-y-8">
+            <div className="space-y-8 print:hidden">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-purple-100 p-4 border-4 border-black"><h4 className="font-black mb-2 uppercase">Fase 1: Sensibilização</h4><input type="text" name="f1AcaoEngajamento" value={formData.f1AcaoEngajamento} onChange={handleChange} className={inputStyle} /></div>
                 <div className="bg-orange-100 p-4 border-4 border-black"><h4 className="font-black mb-2 uppercase">Fase 2: Tecnologia</h4><input type="text" name="f2Ferramenta" value={formData.f2Ferramenta} onChange={handleChange} className={inputStyle} /></div>
@@ -319,7 +301,6 @@ export default function GCLabPro() {
                 <div className="bg-lime-100 p-4 border-4 border-black"><h4 className="font-black mb-2 uppercase">Fase 4: Sustentação</h4><input type="text" name="f4NovaRotina" value={formData.f4NovaRotina} onChange={handleChange} className={inputStyle} /></div>
               </div>
 
-              {/* CONSELHO IA */}
               <div className="border-8 border-black p-6 bg-black text-white shadow-[8px_8px_0px_#ff00ff]">
                 <div className="flex items-center gap-3 mb-4">
                   <ShieldCheck size={32} className="text-lime-400" />
@@ -338,7 +319,6 @@ export default function GCLabPro() {
                 </button>
               </div>
 
-              {/* UPLOAD EVIDÊNCIA */}
               <div className="p-6 bg-white border-4 border-black">
                  <h3 className="text-xl font-black uppercase mb-4 flex items-center gap-2"><UploadCloud size={24} /> Evidência de Campo</h3>
                  {!formData.evidenciaUrl ? (
@@ -354,7 +334,6 @@ export default function GCLabPro() {
                  )}
               </div>
 
-              {/* FILTRO DE REALIDADE ACADÊMICO INTEGRADO */}
               <div className="p-6 bg-red-400 border-4 border-black space-y-4">
                 <div>
                    <h3 className="text-xl font-black uppercase flex items-center gap-2">Filtro de Realidade</h3>
@@ -362,70 +341,114 @@ export default function GCLabPro() {
                       <span className="text-red-600 font-black">Atenção, Consultores:</span> Um plano no papel aceita tudo. Para aprovar o projeto, vocês precisam provar que ele sobrevive no mundo corporativo. Marque as opções e justifique detalhadamente como resolverão cada barreira.
                    </p>
                 </div>
-
                 <div className="space-y-4 bg-white p-4 border-4 border-black">
                    <div className="space-y-2">
                      <label className="flex items-center gap-3 font-black uppercase text-sm"><input type="checkbox" name="chkOrcamento" checked={formData.chkOrcamento} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> 1. Recurso Disponível?</label>
                      {formData.chkOrcamento && <textarea name="justOrcamento" value={formData.justOrcamento} onChange={handleChange} placeholder="Justifique: A empresa possui orçamento liberado ou infraestrutura física/digital para bancar a ferramenta da Fase 2? De onde sairá o recurso?" className={inputStyle} rows="2"></textarea>}
                    </div>
-                   
                    <div className="space-y-2">
                      <label className="flex items-center gap-3 font-black uppercase text-sm"><input type="checkbox" name="chkTempo" checked={formData.chkTempo} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> 2. Tempo na Rotina?</label>
                      {formData.chkTempo && <textarea name="justTempo" value={formData.justTempo} onChange={handleChange} placeholder="Justifique: A equipe terá tempo hábil durante o expediente normal para alimentar essa nova rotina? Como isso será encaixado no dia a dia?" className={inputStyle} rows="2"></textarea>}
                    </div>
-                   
                    <div className="space-y-2">
                      <label className="flex items-center gap-3 font-black uppercase text-sm"><input type="checkbox" name="chkManutencao" checked={formData.chkManutencao} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> 3. Resolve a Dor?</label>
                      {formData.chkManutencao && <textarea name="justManutencao" value={formData.justManutencao} onChange={handleChange} placeholder="Justifique: Explique como essa solução elimina EXATAMENTE o Problema Central que vocês mapearam lá na Etapa 3." className={inputStyle} rows="2"></textarea>}
                    </div>
                 </div>
               </div>
-
             </div>
           )}
 
-          {/* ETAPA 5 (RELATÓRIO IMPRESSO) */}
+          {/* ========================================================================= */}
+          {/* ETAPA 5 - NOVO DESIGN CORPORATIVO (Mckinsey/BCG Style) PARA IMPRESSÃO */}
+          {/* ========================================================================= */}
           {step === 5 && (
-            <div id="printArea" className="bg-white p-10 border-8 border-black font-mono text-black">
-               <div className="flex justify-between items-center mb-8 border-b-8 border-black pb-6">
-                  <h1 className="text-3xl font-black uppercase bg-black text-white p-4 grow text-center mx-10">Roadmap Executivo GC</h1>
-               </div>
-               <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4 border-4 border-black p-4 bg-gray-50 font-black uppercase italic">
-                     <p>Cliente: {formData.empresa}</p>
-                     <p>Equipe: {formData.alunos.join(", ")}</p>
+            <div id="printArea" className="bg-white p-8 md:p-12 border border-gray-200 font-sans text-gray-800 mx-auto max-w-4xl shadow-md print:border-none print:shadow-none print:max-w-full">
+              
+              {/* CABEÇALHO DO RELATÓRIO */}
+              <div className="flex justify-between items-center border-b-2 border-blue-900 pb-6 mb-8">
+                <div>
+                  <h1 className="text-2xl font-bold text-blue-900 uppercase tracking-wider">Projeto Executivo</h1>
+                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-widest mt-1">Gestão do Conhecimento</h2>
+                </div>
+                <img src={uniaraLogo} alt="Uniara" className="h-12 opacity-90" />
+              </div>
+
+              {/* DADOS DO PROJETO */}
+              <div className="grid grid-cols-2 gap-6 mb-10 text-sm">
+                <div>
+                  <p className="text-gray-400 uppercase text-[10px] font-bold tracking-widest mb-1">Empresa / Setor Foco</p>
+                  <p className="font-bold text-lg text-gray-900">{formData.empresa} <span className="font-normal text-gray-500 text-sm">({formData.area})</span></p>
+                </div>
+                <div>
+                  <p className="text-gray-400 uppercase text-[10px] font-bold tracking-widest mb-1">Consultores (Equipe)</p>
+                  <p className="font-medium text-gray-800">{formData.alunos.join(", ")}</p>
+                </div>
+              </div>
+
+              {/* PROBLEMA CENTRAL */}
+              <div className="mb-10">
+                <h3 className="text-blue-900 font-bold uppercase text-xs tracking-widest border-b border-gray-300 pb-2 mb-4">1. Diagnóstico e Problema Central</h3>
+                <p className="text-gray-800 text-base leading-relaxed bg-gray-50 p-5 border-l-4 border-blue-900 italic">
+                  "{formData.gapPrincipal}"
+                </p>
+              </div>
+
+              {/* ROADMAP */}
+              <div className="mb-10">
+                <h3 className="text-blue-900 font-bold uppercase text-xs tracking-widest border-b border-gray-300 pb-2 mb-4">2. Roadmap de Implantação</h3>
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="bg-blue-50/50 p-4 border border-blue-100 rounded-sm">
+                    <p className="text-[10px] font-bold text-blue-800 uppercase mb-2 tracking-wider">Fase 1: Sensibilização</p>
+                    <p className="text-xs text-gray-700 leading-relaxed">{formData.f1AcaoEngajamento}</p>
                   </div>
-                  <div className="border-4 border-black p-4 bg-red-100">
-                    <h3 className="font-black uppercase mb-2 underline">Problema Central:</h3>
-                    <p className="font-bold">{formData.gapPrincipal}</p>
+                  <div className="bg-blue-50/50 p-4 border border-blue-100 rounded-sm">
+                    <p className="text-[10px] font-bold text-blue-800 uppercase mb-2 tracking-wider">Fase 2: Tecnologia</p>
+                    <p className="text-xs text-gray-700 leading-relaxed">{formData.f2Ferramenta}</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                     <div className="border-4 border-black p-4"><p className="font-black italic mb-1">Fase 1</p><p className="text-xs">{formData.f1AcaoEngajamento}</p></div>
-                     <div className="border-4 border-black p-4"><p className="font-black italic mb-1">Fase 2</p><p className="text-xs">{formData.f2Ferramenta}</p></div>
-                     <div className="border-4 border-black p-4"><p className="font-black italic mb-1">Fase 3</p><p className="text-xs">{formData.f3SetorPiloto}</p></div>
-                     <div className="border-4 border-black p-4"><p className="font-black italic mb-1">Fase 4</p><p className="text-xs">{formData.f4NovaRotina}</p></div>
+                  <div className="bg-blue-50/50 p-4 border border-blue-100 rounded-sm">
+                    <p className="text-[10px] font-bold text-blue-800 uppercase mb-2 tracking-wider">Fase 3: Piloto</p>
+                    <p className="text-xs text-gray-700 leading-relaxed">{formData.f3SetorPiloto}</p>
                   </div>
-                  {formData.feedbackIA && (
-                    <div className="border-4 border-black p-4 bg-yellow-50">
-                      <h3 className="font-black uppercase text-xs mb-2">Parecer do Conselho Executivo (IA):</h3>
-                      <p className="text-[10px] italic font-bold leading-relaxed whitespace-pre-wrap">{formData.feedbackIA}</p>
-                    </div>
-                  )}
-                  {/* IMPRESSÃO DAS DEFESAS NO RELATÓRIO DO PROFESSOR */}
-                  <div className="border-4 border-black p-4 bg-white">
-                    <h3 className="font-black uppercase text-xs mb-3 border-b-2 border-black pb-2">Defesa de Viabilidade (Sanity Check):</h3>
-                    <div className="space-y-3">
-                      <p className="text-[11px]"><strong className="uppercase">Recursos:</strong> {formData.justOrcamento}</p>
-                      <p className="text-[11px]"><strong className="uppercase">Tempo na Rotina:</strong> {formData.justTempo}</p>
-                      <p className="text-[11px]"><strong className="uppercase">Resolve a Dor:</strong> {formData.justManutencao}</p>
-                    </div>
+                  <div className="bg-blue-50/50 p-4 border border-blue-100 rounded-sm">
+                    <p className="text-[10px] font-bold text-blue-800 uppercase mb-2 tracking-wider">Fase 4: Sustentação</p>
+                    <p className="text-xs text-gray-700 leading-relaxed">{formData.f4NovaRotina}</p>
                   </div>
-               </div>
+                </div>
+              </div>
+
+              {/* VIABILIDADE E PARECER (LADO A LADO) */}
+              <div className="grid grid-cols-2 gap-8 mb-8">
+                {/* VIABILIDADE */}
+                <div>
+                  <h3 className="text-blue-900 font-bold uppercase text-xs tracking-widest border-b border-gray-300 pb-2 mb-4">3. Defesa de Viabilidade</h3>
+                  <ul className="space-y-4 text-xs text-gray-700 leading-relaxed">
+                    <li><strong className="text-gray-900 block mb-1">Recursos e Orçamento:</strong> {formData.justOrcamento}</li>
+                    <li><strong className="text-gray-900 block mb-1">Tempo na Rotina:</strong> {formData.justTempo}</li>
+                    <li><strong className="text-gray-900 block mb-1">Resolução da Dor:</strong> {formData.justManutencao}</li>
+                  </ul>
+                </div>
+
+                {/* PARECER IA */}
+                <div>
+                  <h3 className="text-blue-900 font-bold uppercase text-xs tracking-widest border-b border-gray-300 pb-2 mb-4">4. Parecer do Conselho (IA)</h3>
+                  <div className="text-xs text-gray-700 leading-relaxed space-y-2 whitespace-pre-wrap bg-gray-50 p-4 border border-gray-200 rounded-sm">
+                    {formData.feedbackIA}
+                  </div>
+                </div>
+              </div>
+              
+              {/* ASSINATURA RODAPÉ */}
+              <div className="mt-16 text-center text-[10px] text-gray-400 border-t border-gray-200 pt-6">
+                <p className="uppercase tracking-widest mb-1">Gerado pelo sistema GC-LAB 4.0 - Laboratório de Consultoria</p>
+                <p>NITE - Uniara • {new Date().toLocaleDateString('pt-BR')}</p>
+              </div>
+
             </div>
           )}
 
-          {/* BOTÕES DE NAVEGAÇÃO E TRAVA INTELIGENTE */}
-          <div className="mt-12 flex justify-between gap-4 no-print">
+          {/* BOTÕES ESCONDIDOS NA IMPRESSÃO (print:hidden) */}
+          <div className="mt-12 flex justify-between gap-4 print:hidden">
             {step > 1 && <button onClick={() => setStep(step - 1)} className={`${btnBrutal} bg-white`}>Voltar</button>}
             
             {step < 4 ? (
@@ -444,7 +467,9 @@ export default function GCLabPro() {
                 Gerar Projeto Executivo
               </button>
             ) : (
-              <button onClick={() => window.print()} className={`${btnBrutal} bg-black text-white`}>Imprimir PDF</button>
+              <button onClick={() => window.print()} className={`${btnBrutal} bg-black text-white hover:bg-gray-800`}>
+                🖨️ Imprimir / Salvar PDF
+              </button>
             )}
           </div>
         </div>
