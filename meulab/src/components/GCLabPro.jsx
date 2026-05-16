@@ -115,7 +115,7 @@ export default function GCLabPro() {
     Seja direto, crítico e use tom profissional. Não dê parabéns.`;
 
     try {
-      // Chama a nossa rota local interna da Vercel
+      // Agora o React chama a nossa própria API na Vercel
       const response = await fetch('/api/validar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -123,7 +123,6 @@ export default function GCLabPro() {
       });
       
       const data = await response.json();
-      
       if (data.error) throw new Error(data.error);
 
       const textoIA = data.candidates[0].content.parts[0].text;
@@ -132,7 +131,7 @@ export default function GCLabPro() {
       await updateDoc(doc(db, "projetos_gc", docId), { feedbackIA: textoIA });
     } catch (e) {
       console.error(e);
-      setFeedbackConselho("O conselho está em reunião. Tente novamente em instantes.");
+      setFeedbackConselho("O conselho está em reunião. Erro de comunicação com o servidor.");
     }
     setIsIAWait(false);
   };
