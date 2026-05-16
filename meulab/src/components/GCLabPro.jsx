@@ -22,6 +22,7 @@ export default function GCLabPro() {
   const [feedbackConselho, setFeedbackConselho] = useState("");
   const [isIAWait, setIsIAWait] = useState(false);
 
+  // ESTRUTURA DE DADOS COMPLETA COM AS JUSTIFICATIVAS DE VIABILIDADE
   const [formData, setFormData] = useState({
     nomeGrupo: '', empresa: '', area: '', alunos: [],
     qPessoasSaida: '', qPessoasErro: '', diagPessoasTags: [], diagPessoasObs: '',
@@ -30,7 +31,9 @@ export default function GCLabPro() {
     nivelMaturidade: '1', gapPrincipal: '', impactoNegocio: '',
     f1Patrocinador: '', f1AcaoEngajamento: '', f2Ferramenta: '', f2ResponsavelTI: '',
     f3SetorPiloto: '', f3CriterioSucesso: '', f4NovaRotina: '', f4DonoProcesso: '',
-    chkOrcamento: false, chkTempo: false, chkManutencao: false,
+    chkOrcamento: false, justOrcamento: '',
+    chkTempo: false, justTempo: '',
+    chkManutencao: false, justManutencao: '',
     evidenciaUrl: '', feedbackIA: ''
   });
 
@@ -49,7 +52,7 @@ export default function GCLabPro() {
   const carregarProjetoPeloId = async (idDigitado) => {
     if (!idDigitado) return;
     
-    // Tratamento caso o aluno cole a URL inteira por engano em vez de só o código
+    // Extrai o ID caso o aluno cole o link completo por engano
     const cleanId = idDigitado.includes('?id=') 
       ? idDigitado.split('?id=')[1].split('&')[0].trim() 
       : idDigitado.trim();
@@ -62,13 +65,12 @@ export default function GCLabPro() {
         setFormData(data);
         setDocId(docSnap.id);
         if(data.feedbackIA) setFeedbackConselho(data.feedbackIA);
-        // Sincroniza a URL do navegador do novo membro para não perder o projeto
         window.history.replaceState(null, '', `?id=${docSnap.id}`);
       } else {
-        alert("Código ou Link do projeto não encontrado! Verifique se foi digitado corretamente.");
+        alert("Projeto não encontrado! Verifique o código ou link informado.");
       }
     } catch (e) { 
-      console.error(e); 
+      console.error(e);
       alert("Erro ao conectar com o banco de dados.");
     }
   };
@@ -76,7 +78,7 @@ export default function GCLabPro() {
   const copiarLinkDoGrupo = () => {
     const url = `${window.location.origin}?id=${docId}`;
     navigator.clipboard.writeText(url);
-    alert(`🔗 Link copiado!`);
+    alert(`🔗 Link copiado com sucesso!`);
   };
 
   const salvarNoFirebase = async (proximoPasso) => {
@@ -115,7 +117,6 @@ export default function GCLabPro() {
     Seja direto, crítico e use tom profissional. Não dê parabéns.`;
 
     try {
-      // Agora o React chama a nossa própria API na Vercel
       const response = await fetch('/api/validar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -180,7 +181,6 @@ export default function GCLabPro() {
 
   const addAluno = () => { if (tempAluno && formData.alunos.length < 6) { setFormData({ ...formData, alunos: [...formData.alunos, tempAluno] }); setTempAluno(""); } };
   
-  // FUNÇÃO DE REMOVER ALUNO DEVIDAMENTE DECLARADA
   const removeAluno = (index) => {
     setFormData({ ...formData, alunos: formData.alunos.filter((_, i) => i !== index) });
   };
@@ -216,7 +216,7 @@ export default function GCLabPro() {
     <div className="min-h-screen bg-pink-500 p-4 md:p-10 font-sans">
       <div className="max-w-5xl mx-auto bg-white border-4 border-black shadow-[12px_12px_0px_rgba(0,0,0,1)]">
         
-        {/* CABEÇALHO COM BOTÕES DE LINK E PROFESSOR ALINHADOS */}
+        {/* CABEÇALHO COMPLETO */}
         <div className="bg-yellow-400 p-6 border-b-4 border-black flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-4">
              <img src={uniaraLogo} alt="Uniara" className="h-12 border-4 border-black bg-white" />
@@ -244,9 +244,9 @@ export default function GCLabPro() {
         <div className="p-4 md:p-10 bg-gray-50">
           {isSaving && <div className="fixed bottom-5 right-5 bg-black text-lime-400 p-4 border-4 border-lime-400 font-black z-50">SALVANDO...</div>}
 
+          {/* ETAPA 1 */}
           {step === 1 && (
             <div className="space-y-6">
-              
               {!docId && (
                 <div className="border-4 border-black p-4 bg-orange-100 shadow-[4px_4px_0px_black] flex flex-col md:flex-row justify-between items-center gap-4">
                   <div>
@@ -283,6 +283,7 @@ export default function GCLabPro() {
             </div>
           )}
 
+          {/* ETAPA 2 */}
           {step === 2 && (
              <div className="space-y-6">
                 {['pessoas', 'processos', 'tecnologia'].map(pilar => (
@@ -298,6 +299,7 @@ export default function GCLabPro() {
              </div>
           )}
 
+          {/* ETAPA 3 */}
           {step === 3 && (
             <div className="space-y-6">
               <div className="border-4 border-black p-6 bg-red-100">
@@ -307,6 +309,7 @@ export default function GCLabPro() {
             </div>
           )}
 
+          {/* ETAPA 4 */}
           {step === 4 && (
             <div className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -316,12 +319,12 @@ export default function GCLabPro() {
                 <div className="bg-lime-100 p-4 border-4 border-black"><h4 className="font-black mb-2 uppercase">Fase 4: Sustentação</h4><input type="text" name="f4NovaRotina" value={formData.f4NovaRotina} onChange={handleChange} className={inputStyle} /></div>
               </div>
 
+              {/* CONSELHO IA */}
               <div className="border-8 border-black p-6 bg-black text-white shadow-[8px_8px_0px_#ff00ff]">
                 <div className="flex items-center gap-3 mb-4">
                   <ShieldCheck size={32} className="text-lime-400" />
                   <h3 className="text-2xl font-black uppercase italic">Validação do Conselho Executivo</h3>
                 </div>
-                
                 {feedbackConselho ? (
                   <div className="bg-white text-black p-4 border-4 border-lime-400 font-mono text-sm mb-4 leading-relaxed">
                     <MessageSquareQuote className="mb-2 text-purple-600" size={24} />
@@ -330,12 +333,12 @@ export default function GCLabPro() {
                 ) : (
                   <p className="text-xs font-bold mb-4 text-gray-400 italic">O conselho aguarda o envio do plano para emitir o parecer técnico.</p>
                 )}
-
                 <button onClick={validarComConselho} disabled={isIAWait} className={`${btnBrutal} bg-lime-400 text-black w-full justify-center disabled:opacity-50`}>
                   {isIAWait ? "PROCESSANDO PARECER..." : "SUBMETER AO CONSELHO (IA)"}
                 </button>
               </div>
 
+              {/* UPLOAD EVIDÊNCIA */}
               <div className="p-6 bg-white border-4 border-black">
                  <h3 className="text-xl font-black uppercase mb-4 flex items-center gap-2"><UploadCloud size={24} /> Evidência de Campo</h3>
                  {!formData.evidenciaUrl ? (
@@ -351,16 +354,39 @@ export default function GCLabPro() {
                  )}
               </div>
 
-              <div className="p-6 bg-red-400 border-4 border-black space-y-3 font-bold">
-                 <label className="flex items-center gap-3"><input type="checkbox" name="chkOrcamento" checked={formData.chkOrcamento} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> Recurso disponível?</label>
-                 <label className="flex items-center gap-3"><input type="checkbox" name="chkTempo" checked={formData.chkTempo} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> Tempo na rotina?</label>
-                 <label className="flex items-center gap-3"><input type="checkbox" name="chkManutencao" checked={formData.chkManutencao} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> Resolve a dor?</label>
+              {/* FILTRO DE REALIDADE ACADÊMICO INTEGRADO */}
+              <div className="p-6 bg-red-400 border-4 border-black space-y-4">
+                <div>
+                   <h3 className="text-xl font-black uppercase flex items-center gap-2">Filtro de Realidade</h3>
+                   <p className="text-xs font-bold bg-white p-3 border-2 border-black mt-2 leading-relaxed">
+                      <span className="text-red-600 font-black">Atenção, Consultores:</span> Um plano no papel aceita tudo. Para aprovar o projeto, vocês precisam provar que ele sobrevive no mundo corporativo. Marque as opções e justifique detalhadamente como resolverão cada barreira.
+                   </p>
+                </div>
+
+                <div className="space-y-4 bg-white p-4 border-4 border-black">
+                   <div className="space-y-2">
+                     <label className="flex items-center gap-3 font-black uppercase text-sm"><input type="checkbox" name="chkOrcamento" checked={formData.chkOrcamento} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> 1. Recurso Disponível?</label>
+                     {formData.chkOrcamento && <textarea name="justOrcamento" value={formData.justOrcamento} onChange={handleChange} placeholder="Justifique: A empresa possui orçamento liberado ou infraestrutura física/digital para bancar a ferramenta da Fase 2? De onde sairá o recurso?" className={inputStyle} rows="2"></textarea>}
+                   </div>
+                   
+                   <div className="space-y-2">
+                     <label className="flex items-center gap-3 font-black uppercase text-sm"><input type="checkbox" name="chkTempo" checked={formData.chkTempo} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> 2. Tempo na Rotina?</label>
+                     {formData.chkTempo && <textarea name="justTempo" value={formData.justTempo} onChange={handleChange} placeholder="Justifique: A equipe terá tempo hábil durante o expediente normal para alimentar essa nova rotina? Como isso será encaixado no dia a dia?" className={inputStyle} rows="2"></textarea>}
+                   </div>
+                   
+                   <div className="space-y-2">
+                     <label className="flex items-center gap-3 font-black uppercase text-sm"><input type="checkbox" name="chkManutencao" checked={formData.chkManutencao} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> 3. Resolve a Dor?</label>
+                     {formData.chkManutencao && <textarea name="justManutencao" value={formData.justManutencao} onChange={handleChange} placeholder="Justifique: Explique como essa solução elimina EXATAMENTE o Problema Central que vocês mapearam lá na Etapa 3." className={inputStyle} rows="2"></textarea>}
+                   </div>
+                </div>
               </div>
+
             </div>
           )}
 
+          {/* ETAPA 5 (RELATÓRIO IMPRESSO) */}
           {step === 5 && (
-            <div id="printArea" className="bg-white p-10 border-8 border-black font-mono">
+            <div id="printArea" className="bg-white p-10 border-8 border-black font-mono text-black">
                <div className="flex justify-between items-center mb-8 border-b-8 border-black pb-6">
                   <h1 className="text-3xl font-black uppercase bg-black text-white p-4 grow text-center mx-10">Roadmap Executivo GC</h1>
                </div>
@@ -381,21 +407,40 @@ export default function GCLabPro() {
                   </div>
                   {formData.feedbackIA && (
                     <div className="border-4 border-black p-4 bg-yellow-50">
-                      <h3 className="font-black uppercase text-xs mb-2">Parecer do Conselho Executivo:</h3>
-                      <p className="text-[10px] italic font-bold">{formData.feedbackIA}</p>
+                      <h3 className="font-black uppercase text-xs mb-2">Parecer do Conselho Executivo (IA):</h3>
+                      <p className="text-[10px] italic font-bold leading-relaxed whitespace-pre-wrap">{formData.feedbackIA}</p>
                     </div>
                   )}
+                  {/* IMPRESSÃO DAS DEFESAS NO RELATÓRIO DO PROFESSOR */}
+                  <div className="border-4 border-black p-4 bg-white">
+                    <h3 className="font-black uppercase text-xs mb-3 border-b-2 border-black pb-2">Defesa de Viabilidade (Sanity Check):</h3>
+                    <div className="space-y-3">
+                      <p className="text-[11px]"><strong className="uppercase">Recursos:</strong> {formData.justOrcamento}</p>
+                      <p className="text-[11px]"><strong className="uppercase">Tempo na Rotina:</strong> {formData.justTempo}</p>
+                      <p className="text-[11px]"><strong className="uppercase">Resolve a Dor:</strong> {formData.justManutencao}</p>
+                    </div>
+                  </div>
                </div>
             </div>
           )}
 
+          {/* BOTÕES DE NAVEGAÇÃO E TRAVA INTELIGENTE */}
           <div className="mt-12 flex justify-between gap-4 no-print">
             {step > 1 && <button onClick={() => setStep(step - 1)} className={`${btnBrutal} bg-white`}>Voltar</button>}
             
             {step < 4 ? (
               <button onClick={() => salvarNoFirebase(step + 1)} className={`${btnBrutal} bg-cyan-400`}>Avançar</button>
             ) : step === 4 ? (
-              <button onClick={() => salvarNoFirebase(5)} disabled={!(formData.chkOrcamento && formData.chkTempo && formData.chkManutencao && formData.evidenciaUrl && formData.feedbackIA)} className={`${btnBrutal} bg-lime-400 disabled:opacity-50`}>
+              <button 
+                onClick={() => salvarNoFirebase(5)} 
+                disabled={!(
+                  formData.chkOrcamento && formData.justOrcamento?.length > 10 && 
+                  formData.chkTempo && formData.justTempo?.length > 10 && 
+                  formData.chkManutencao && formData.justManutencao?.length > 10 && 
+                  formData.evidenciaUrl && formData.feedbackIA
+                )} 
+                className={`${btnBrutal} bg-lime-400 disabled:opacity-50`}
+              >
                 Gerar Projeto Executivo
               </button>
             ) : (
