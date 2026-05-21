@@ -21,6 +21,7 @@ export default function GCLabPro() {
   const [feedbackConselho, setFeedbackConselho] = useState("");
   const [isIAWait, setIsIAWait] = useState(false);
 
+  // NOVO: 'evidencias' agora é uma lista (array)
   const [formData, setFormData] = useState({
     nomeGrupo: '', empresa: '', area: '', alunos: [],
     qPessoasSaida: '', qPessoasErro: '', diagPessoasTags: [], diagPessoasObs: '',
@@ -32,7 +33,7 @@ export default function GCLabPro() {
     chkOrcamento: false, justOrcamento: '',
     chkTempo: false, justTempo: '',
     chkManutencao: false, justManutencao: '',
-    evidenciaUrl: '', feedbackIA: ''
+    evidencias: [], feedbackIA: ''
   });
 
   const presets = {
@@ -55,6 +56,13 @@ export default function GCLabPro() {
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const data = docSnap.data();
+        
+        // TRATAMENTO RETROATIVO: Se o aluno tinha salvo no modelo antigo (1 arquivo), converte para a lista nova
+        if (data.evidenciaUrl && (!data.evidencias || data.evidencias.length === 0)) {
+          data.evidencias = [{ nome: "Anexo Anterior", url: data.evidenciaUrl }];
+        }
+        if (!data.evidencias) data.evidencias = [];
+
         setFormData(data);
         setDocId(docSnap.id);
         if(data.feedbackIA) setFeedbackConselho(data.feedbackIA);
@@ -127,24 +135,52 @@ export default function GCLabPro() {
     setIsIAWait(false);
   };
 
+  // NOVO: Função de upload adaptada para até 5 arquivos
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const fileRef = ref(storage, `evidencias_gc/${docId}_${file.name}`);
+
+    if (formData.evidencias && formData.evidencias.length >= 5) {
+      alert("Limite máximo de 5 evidências atingido. Remova um arquivo se desejar enviar outro.");
+      return;
+    }
+
+    // Adiciona Date.now() no nome para evitar que alunos sobrescrevam fotos com o mesmo nome (ex: "imagem.jpg")
+    const fileRef = ref(storage, `evidencias_gc/${docId}_${Date.now()}_${file.name}`);
     const uploadTask = uploadBytesResumable(fileRef, file);
+    
     setIsSaving(true);
     uploadTask.on('state_changed',
       (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
       (error) => { console.error(error); setIsSaving(false); },
       () => {
         getDownloadURL(uploadTask.snapshot.ref).then((url) => {
-          setFormData({ ...formData, evidenciaUrl: url });
+          const novaEvidencia = { nome: file.name, url: url };
+          const novasEvidencias = [...(formData.evidencias || []), novaEvidencia];
+          
+          setFormData({ ...formData, evidencias: novasEvidencias });
           setIsSaving(false);
           setUploadProgress(0);
-          updateDoc(doc(db, "projetos_gc", docId), { evidenciaUrl: url, updatedAt: serverTimestamp() });
+          updateDoc(doc(db, "projetos_gc", docId), { evidencias: novasEvidencias, updatedAt: serverTimestamp() });
         });
       }
     );
+  };
+
+  // NOVO: Função para remover um arquivo da lista
+  const removerEvidencia = async (indexParaRemover) => {
+    const confirmacao = window.confirm("Deseja realmente remover este anexo?");
+    if (!confirmacao) return;
+
+    const novasEvidencias = formData.evidencias.filter((_, index) => index !== indexParaRemover);
+    setFormData({ ...formData, evidencias: novasEvidencias });
+    
+    // Atualiza no banco imediatamente
+    if (docId) {
+      setIsSaving(true);
+      await updateDoc(doc(db, "projetos_gc", docId), { evidencias: novasEvidencias, updatedAt: serverTimestamp() });
+      setIsSaving(false);
+    }
   };
 
   const carregarProjetosProfessor = async () => {
@@ -200,13 +236,10 @@ export default function GCLabPro() {
   }
 
   return (
-    // CLASSES DE IMPRESSÃO ADICIONADAS AQUI (print:bg-white print:p-0)
     <div className="min-h-screen bg-pink-500 p-4 md:p-10 font-sans print:bg-white print:p-0">
       
-      {/* MÁXIMA LARGURA E BORDAS DESATIVADAS NA IMPRESSÃO */}
       <div className="max-w-5xl mx-auto bg-white border-4 border-black shadow-[12px_12px_0px_rgba(0,0,0,1)] print:border-none print:shadow-none print:max-w-none print:m-0">
         
-        {/* CABEÇALHO DO JOGO (ESCONDIDO NA IMPRESSÃO) */}
         <div className="bg-yellow-400 p-6 border-b-4 border-black flex flex-col md:flex-row justify-between items-center gap-6 print:hidden">
           <div className="flex items-center gap-4">
              <img src={uniaraLogo} alt="Uniara" className="h-12 border-4 border-black bg-white" />
@@ -319,18 +352,35 @@ export default function GCLabPro() {
                 </button>
               </div>
 
+              {/* NOVO BLOCO DE MÚLTIPLAS EVIDÊNCIAS E LIXEIRA */}
               <div className="p-6 bg-white border-4 border-black">
-                 <h3 className="text-xl font-black uppercase mb-4 flex items-center gap-2"><UploadCloud size={24} /> Evidência de Campo</h3>
-                 {!formData.evidenciaUrl ? (
-                   <label className="cursor-pointer bg-black text-white px-6 py-4 font-black uppercase flex justify-center items-center gap-2 border-4 border-black">
+                 <div className="flex justify-between items-center mb-4">
+                   <h3 className="text-xl font-black uppercase flex items-center gap-2"><UploadCloud size={24} /> Evidências de Campo</h3>
+                   <span className="text-xs font-bold bg-gray-200 px-2 py-1 border-2 border-black">{formData.evidencias?.length || 0}/5 Anexos</span>
+                 </div>
+                 
+                 {(!formData.evidencias || formData.evidencias.length < 5) && (
+                   <label className="cursor-pointer bg-black text-white px-6 py-4 font-black uppercase flex justify-center items-center gap-2 border-4 border-black mb-4 hover:bg-gray-800 transition-all">
                      <UploadCloud size={20} /> Anexar Foto/Documento
                      <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleFileUpload} />
                    </label>
-                 ) : (
-                   <div className="bg-lime-400 p-4 border-4 border-black font-black uppercase flex justify-between items-center">
-                     ✅ ARQUIVO ANEXADO
-                     <a href={formData.evidenciaUrl} target="_blank" rel="noreferrer" className="text-xs bg-black text-white px-3 py-2 border-2 border-white">Ver</a>
+                 )}
+
+                 {formData.evidencias && formData.evidencias.length > 0 && (
+                   <div className="space-y-2">
+                     {formData.evidencias.map((arq, idx) => (
+                       <div key={idx} className="bg-lime-400 p-3 border-4 border-black font-black uppercase flex justify-between items-center text-xs">
+                         <span className="truncate max-w-[180px] md:max-w-xs" title={arq.nome}>✅ {arq.nome}</span>
+                         <div className="flex gap-2">
+                           <a href={arq.url} target="_blank" rel="noreferrer" className="bg-black text-white p-2 border-2 border-white hover:scale-105 transition-all" title="Ver Arquivo"><Eye size={16}/></a>
+                           <button onClick={() => removerEvidencia(idx)} className="bg-red-600 text-white p-2 border-2 border-white hover:scale-105 transition-all" title="Remover"><Trash2 size={16}/></button>
+                         </div>
+                       </div>
+                     ))}
                    </div>
+                 )}
+                 {(!formData.evidencias || formData.evidencias.length === 0) && (
+                   <p className="text-xs text-red-600 font-bold mt-2 uppercase">* É obrigatório anexar pelo menos 1 arquivo.</p>
                  )}
               </div>
 
@@ -359,13 +409,9 @@ export default function GCLabPro() {
             </div>
           )}
 
-          {/* ========================================================================= */}
-          {/* ETAPA 5 - NOVO DESIGN CORPORATIVO (Mckinsey/BCG Style) PARA IMPRESSÃO */}
-          {/* ========================================================================= */}
           {step === 5 && (
             <div id="printArea" className="bg-white p-8 md:p-12 border border-gray-200 font-sans text-gray-800 mx-auto max-w-4xl shadow-md print:border-none print:shadow-none print:max-w-full">
               
-              {/* CABEÇALHO DO RELATÓRIO */}
               <div className="flex justify-between items-center border-b-2 border-blue-900 pb-6 mb-8">
                 <div>
                   <h1 className="text-2xl font-bold text-blue-900 uppercase tracking-wider">Projeto Executivo</h1>
@@ -374,7 +420,6 @@ export default function GCLabPro() {
                 <img src={uniaraLogo} alt="Uniara" className="h-12 opacity-90" />
               </div>
 
-              {/* DADOS DO PROJETO */}
               <div className="grid grid-cols-2 gap-6 mb-10 text-sm">
                 <div>
                   <p className="text-gray-400 uppercase text-[10px] font-bold tracking-widest mb-1">Empresa / Setor Foco</p>
@@ -386,7 +431,6 @@ export default function GCLabPro() {
                 </div>
               </div>
 
-              {/* PROBLEMA CENTRAL */}
               <div className="mb-10">
                 <h3 className="text-blue-900 font-bold uppercase text-xs tracking-widest border-b border-gray-300 pb-2 mb-4">1. Diagnóstico e Problema Central</h3>
                 <p className="text-gray-800 text-base leading-relaxed bg-gray-50 p-5 border-l-4 border-blue-900 italic">
@@ -394,7 +438,6 @@ export default function GCLabPro() {
                 </p>
               </div>
 
-              {/* ROADMAP */}
               <div className="mb-10">
                 <h3 className="text-blue-900 font-bold uppercase text-xs tracking-widest border-b border-gray-300 pb-2 mb-4">2. Roadmap de Implantação</h3>
                 <div className="grid grid-cols-4 gap-4">
@@ -417,9 +460,7 @@ export default function GCLabPro() {
                 </div>
               </div>
 
-              {/* VIABILIDADE E PARECER (LADO A LADO) */}
               <div className="grid grid-cols-2 gap-8 mb-8">
-                {/* VIABILIDADE */}
                 <div>
                   <h3 className="text-blue-900 font-bold uppercase text-xs tracking-widest border-b border-gray-300 pb-2 mb-4">3. Defesa de Viabilidade</h3>
                   <ul className="space-y-4 text-xs text-gray-700 leading-relaxed">
@@ -427,9 +468,13 @@ export default function GCLabPro() {
                     <li><strong className="text-gray-900 block mb-1">Tempo na Rotina:</strong> {formData.justTempo}</li>
                     <li><strong className="text-gray-900 block mb-1">Resolução da Dor:</strong> {formData.justManutencao}</li>
                   </ul>
+                  {/* INDICAÇÃO DE ARQUIVOS ANEXOS NO PDF */}
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Documentação Suporte</p>
+                    <p className="text-xs font-bold text-gray-700 mt-1">📎 {formData.evidencias?.length || 0} arquivo(s) anexado(s) no sistema digital.</p>
+                  </div>
                 </div>
 
-                {/* PARECER IA */}
                 <div>
                   <h3 className="text-blue-900 font-bold uppercase text-xs tracking-widest border-b border-gray-300 pb-2 mb-4">4. Parecer do Conselho (IA)</h3>
                   <div className="text-xs text-gray-700 leading-relaxed space-y-2 whitespace-pre-wrap bg-gray-50 p-4 border border-gray-200 rounded-sm">
@@ -437,33 +482,22 @@ export default function GCLabPro() {
                   </div>
                 </div>
               </div>
-              {/* ======================================================= */}
-              {/* NOVO: ROTEIRO DO PITCH DE 2 MINUTOS */}
-              {/* ======================================================= */}
+              
               <div className="mb-8 mt-10 print:mt-8 page-break-inside-avoid">
                 <h3 className="text-blue-900 font-bold uppercase text-xs tracking-widest border-b border-gray-300 pb-2 mb-4">
                   🎤 Roteiro de Pitch Sugerido (2 Minutos)
                 </h3>
                 <div className="bg-yellow-50 border border-yellow-200 p-5 rounded-sm">
                   <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-3 font-bold">Leia e adapte para a apresentação oral:</p>
-                  
                   <div className="space-y-3 text-sm text-gray-800">
-                    <p>
-                      <strong className="text-blue-900">1. O Gancho (15s):</strong> "Olá, somos a equipe <strong>{formData.nomeGrupo}</strong> e analisamos o setor de <strong>{formData.area}</strong> da <strong>{formData.empresa}</strong>."
-                    </p>
-                    <p>
-                      <strong className="text-blue-900">2. A Dor (30s):</strong> "Identificamos que o principal gargalo travando a produtividade hoje é: <em>{formData.gapPrincipal}</em>."
-                    </p>
-                    <p>
-                      <strong className="text-blue-900">3. A Solução (45s):</strong> "Para resolver isso, não basta só colocar sistema. Vamos começar engajando a equipe com <strong>{formData.f1AcaoEngajamento}</strong>. Em seguida, implementaremos a tecnologia <strong>{formData.f2Ferramenta}</strong>. Para garantir que funcione, faremos um piloto restrito no <strong>{formData.f3SetorPiloto}</strong>."
-                    </p>
-                    <p>
-                      <strong className="text-blue-900">4. A Viabilidade (30s):</strong> "Esse projeto é totalmente viável. Temos tempo na rotina garantido através de <em>{formData.justTempo}</em>, e ele se paga porque elimina diretamente a nossa dor central através de <em>{formData.justManutencao}</em>. Muito obrigado!"
-                    </p>
+                    <p><strong className="text-blue-900">1. O Gancho (15s):</strong> "Olá, somos a equipe <strong>{formData.nomeGrupo}</strong> e analisamos o setor de <strong>{formData.area}</strong> da <strong>{formData.empresa}</strong>."</p>
+                    <p><strong className="text-blue-900">2. A Dor (30s):</strong> "Identificamos que o principal gargalo travando a produtividade hoje é: <em>{formData.gapPrincipal}</em>."</p>
+                    <p><strong className="text-blue-900">3. A Solução (45s):</strong> "Para resolver isso, não basta só colocar sistema. Vamos começar engajando a equipe com <strong>{formData.f1AcaoEngajamento}</strong>. Em seguida, implementaremos a tecnologia <strong>{formData.f2Ferramenta}</strong>. Para garantir que funcione, faremos um piloto restrito no <strong>{formData.f3SetorPiloto}</strong>."</p>
+                    <p><strong className="text-blue-900">4. A Viabilidade (30s):</strong> "Esse projeto é totalmente viável. Temos tempo na rotina garantido através de <em>{formData.justTempo}</em>, e ele se paga porque elimina diretamente a nossa dor central através de <em>{formData.justManutencao}</em>. Muito obrigado!"</p>
                   </div>
                 </div>
               </div>
-              {/* ASSINATURA RODAPÉ */}
+
               <div className="mt-16 text-center text-[10px] text-gray-400 border-t border-gray-200 pt-6">
                 <p className="uppercase tracking-widest mb-1">Gerado pelo sistema GC-LAB 4.0 - Laboratório de Consultoria</p>
                 <p>NITE - Uniara • {new Date().toLocaleDateString('pt-BR')}</p>
@@ -472,7 +506,7 @@ export default function GCLabPro() {
             </div>
           )}
 
-          {/* BOTÕES ESCONDIDOS NA IMPRESSÃO (print:hidden) */}
+          {/* NOVA CONDIÇÃO DE TRAVA: Exige array 'evidencias' > 0 */}
           <div className="mt-12 flex justify-between gap-4 print:hidden">
             {step > 1 && <button onClick={() => setStep(step - 1)} className={`${btnBrutal} bg-white`}>Voltar</button>}
             
@@ -485,7 +519,8 @@ export default function GCLabPro() {
                   formData.chkOrcamento && formData.justOrcamento?.length > 10 && 
                   formData.chkTempo && formData.justTempo?.length > 10 && 
                   formData.chkManutencao && formData.justManutencao?.length > 10 && 
-                  formData.evidenciaUrl && formData.feedbackIA
+                  formData.evidencias && formData.evidencias.length > 0 && 
+                  formData.feedbackIA
                 )} 
                 className={`${btnBrutal} bg-lime-400 disabled:opacity-50`}
               >
