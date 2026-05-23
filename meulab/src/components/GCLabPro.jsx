@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Info, Lightbulb, ClipboardCheck, Rocket, UploadCloud, Link, Users, Eye, MessageSquareQuote, ShieldCheck, FolderPlus, ArrowLeft, CheckCircle, Clock } from 'lucide-react';
+import { Plus, Trash2, Info, Lightbulb, ClipboardCheck, Rocket, UploadCloud, Link, Users, Eye, MessageSquareQuote, ShieldCheck, FolderPlus, ArrowLeft, CheckCircle, Clock, History } from 'lucide-react';
 import { db, storage } from '../firebase';
 import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, getDocs, query, orderBy, getDoc, where } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
-// LOGOS
 import uniaraLogo from '../assets/uniaralogo.jpg';
 import gbxLogo from '../assets/gbxlogo.jpg';
 
@@ -14,14 +13,15 @@ export default function GCLabPro() {
   const [tempAluno, setTempAluno] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   
-  // ESTADOS DO PAINEL DO PROFESSOR (DASHBOARD)
+  // ESTADOS DO PAINEL DO PROFESSOR
   const [showAdmin, setShowAdmin] = useState(false);
   const [isAdminAuth, setIsAdminAuth] = useState(false);
   const [atividades, setAtividades] = useState([]);
   const [atividadeSelecionada, setAtividadeSelecionada] = useState(null);
+  const [projetosRemotos, setProjetosRemotos] = useState([]);
   const [projetosFiltrados, setProjetosFiltrados] = useState([]);
   
-  // Form para o professor criar atividade
+  // Formulário para criar atividade
   const [novaAtivNome, setNovaAtivNome] = useState("");
   const [novaAtivTurma, setNovaAtivTurma] = useState("");
   const [novaAtivNotaMax, setNovaAtivNotaMax] = useState("10");
@@ -31,9 +31,8 @@ export default function GCLabPro() {
   const [isIAWait, setIsIAWait] = useState(false);
   const [isIAProfWait, setIsIAProfWait] = useState(false);
 
-  // ESTADO DO PROJETO COM OS NOVOS CAMPOS DE ATIVIDADE E NOTA FINAL
   const [formData, setFormData] = useState({
-    atividadeId: '', // Vinculo crucial
+    atividadeId: '', 
     nomeGrupo: '', empresa: '', area: '', alunos: [],
     qPessoasSaida: '', qPessoasErro: '', diagPessoasTags: [], diagPessoasObs: '',
     qProcessosTreinamento: '', qProcessosAtualizacao: '', diagProcessosTags: [], diagProcessosObs: '',
@@ -45,7 +44,7 @@ export default function GCLabPro() {
     chkTempo: false, justTempo: '',
     chkManutencao: false, justManutencao: '',
     evidencias: [], feedbackIA: '', avaliacaoProfessorIA: '',
-    notaFinal: '', // Nota atribuída pelo professor
+    notaFinal: '', 
     etapaConcluida: 1
   });
 
@@ -78,14 +77,14 @@ export default function GCLabPro() {
         if(data.feedbackIA) setFeedbackConselho(data.feedbackIA);
         window.history.replaceState(null, '', `?id=${docSnap.id}`);
       } else {
-        alert("Código de projeto inválido!");
+        alert("Código ou ID de projeto não encontrado!");
       }
     } catch (e) { console.error(e); }
   };
 
   const salvarNoFirebase = async (proximoPasso) => {
-    if (!formData.atividadeId) {
-      alert("Erro: Este projeto não está vinculado a nenhuma atividade válida.");
+    if (!formData.atividadeId && !docId) {
+      alert("Erro: Insira o código da atividade antes de iniciar um novo projeto.");
       return;
     }
     setIsSaving(true);
@@ -104,7 +103,6 @@ export default function GCLabPro() {
     setIsSaving(false);
   };
 
-  // PROFESSOR: Criar Atividade Isolada
   const criarNovaAtividade = async (e) => {
     e.preventDefault();
     if(!novaAtivNome || !novaAtivTurma) return;
@@ -128,9 +126,16 @@ export default function GCLabPro() {
       if (senha !== "uniara2024") return;
       setIsAdminAuth(true);
     }
-    const q = query(collection(db, "atividades_gc"), orderBy("createdAt", "desc"));
-    const snap = await getDocs(q);
-    setAtividades(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    // Carrega as atividades
+    const qAct = query(collection(db, "atividades_gc"), orderBy("createdAt", "desc"));
+    const snapAct = await getDocs(qAct);
+    setAtividades(snapAct.docs.map(d => ({ id: d.id, ...d.data() })));
+
+    // Carrega TODOS os projetos para poder filtrar os antigos/órfãos
+    const qProj = query(collection(db, "projetos_gc"), orderBy("createdAt", "desc"));
+    const snapProj = await getDocs(qProj);
+    setProjetosRemotos(snapProj.docs.map(d => ({ id: d.id, ...d.data() })));
+
     setShowAdmin(true);
   };
 
@@ -145,8 +150,18 @@ export default function GCLabPro() {
     try {
       await updateDoc(doc(db, "projetos_gc", pId), { notaFinal: nota });
       setProjetosFiltrados(projetosFiltrados.map(p => p.id === pId ? { ...p, notaFinal: nota } : p));
-      alert("Nota salva/alterada com sucesso!");
+      setProjetosRemotos(projetosRemotos.map(p => p.id === pId ? { ...p, notaFinal: nota } : p));
+      alert("Nota salva com sucesso!");
     } catch (e) { alert("Erro ao salvar nota"); }
+  };
+
+  const vincularAtividadeProjetoAntigo = async (pId, actId) => {
+    try {
+      await updateDoc(doc(db, "projetos_gc", pId), { atividadeId: actId });
+      alert("Projeto vinculado com sucesso à atividade!");
+      // Atualiza as listas locais para sumir dos órfãos e readequar
+      carregarAtividadesDoBanco();
+    } catch (e) { alert("Erro ao vincular atividade."); }
   };
 
   const excluirAtividadeCompleta = async (aId) => {
@@ -161,6 +176,7 @@ export default function GCLabPro() {
     if(window.confirm("Deseja apagar esse grupo definitivamente?")) {
       await deleteDoc(doc(db, "projetos_gc", pId));
       setProjetosFiltrados(projetosFiltrados.filter(p => p.id !== pId));
+      setProjetosRemotos(projetosRemotos.filter(p => p.id !== pId));
     }
   };
 
@@ -230,15 +246,17 @@ export default function GCLabPro() {
   const inputStyle = "w-full p-3 border-4 border-black bg-white focus:bg-yellow-100 outline-none shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-all font-bold text-black text-sm";
   const btnBrutal = "px-6 py-3 border-4 border-black font-black uppercase shadow-[4px_4px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all flex items-center gap-2 text-xs md:text-sm";
 
+  // Filtro interno para achar projetos antigos sem atividade vinculada
+  const projetosOrfaos = projetosRemotos.filter(p => !p.atividadeId || p.atividadeId === "");
+
   // =========================================================================
-  // RENDER DO PAINEL DO PROFESSOR (NOVO DASHBOARD POR ATIVIDADE)
+  // INTERFACE DO PROFESSOR (DASHBOARD COMPLETO)
   // =========================================================================
   if (showAdmin) {
     return (
       <div className="min-h-screen bg-pink-500 p-4 md:p-8 font-sans">
         <div className="max-w-6xl mx-auto bg-white border-4 border-black p-6 shadow-[10px_10px_0px_black]">
           
-          {/* Topo do Painel */}
           <div className="flex justify-between items-center mb-8 border-b-4 border-black pb-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight">Ambiente do Professor</h1>
@@ -248,51 +266,99 @@ export default function GCLabPro() {
           </div>
 
           {!atividadeSelecionada ? (
-            /* VISÃO A: LISTAGEM E CRIAÇÃO DE ATIVIDADES */
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              
-              {/* Coluna Esquerda: Criar Atividade */}
-              <div className="bg-yellow-100 p-6 border-4 border-black shadow-[4px_4px_0px_black] h-fit">
-                <h3 className="font-black uppercase text-lg mb-4 flex items-center gap-2"><FolderPlus size={20} /> Nova Atividade</h3>
-                <form onSubmit={criarNovaAtividade} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-black uppercase mb-1">Nome da Atividade / Bimestre</label>
-                    <input type="text" value={novaAtivNome} onChange={(e) => setNovaAtivNome(e.target.value)} placeholder="Ex: Projeto Integrador I" className="w-full p-2 border-2 border-black font-bold text-sm" required />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-black uppercase mb-1">Turma / Curso</label>
-                    <input type="text" value={novaAtivTurma} onChange={(e) => setNovaAtivTurma(e.target.value)} placeholder="Ex: ADM / Econ 7ª Semestre" className="w-full p-2 border-2 border-black font-bold text-sm" required />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-black uppercase mb-1">Nota Máxima da Rodada</label>
-                    <input type="number" value={novaAtivNotaMax} onChange={(e) => setNovaAtivNotaMax(e.target.value)} className="w-full p-2 border-2 border-black font-bold text-sm" required />
-                  </div>
-                  <button type="submit" className="w-full bg-black text-white py-2 font-black uppercase text-xs border-2 border-black shadow-[2px_2px_0px_rgba(0,0,0,1)]">Cadastrar Atividade</button>
-                </form>
-              </div>
-
-              {/* Coluna Direita: Listagem de Atividades Existentes */}
-              <div className="lg:col-span-2 space-y-4">
-                <h3 className="font-black uppercase text-lg underline">Atividades Ativas</h3>
-                {atividades.length === 0 && <p className="text-sm font-bold text-gray-500 italic">Nenhuma atividade criada ainda.</p>}
+            /* VISÃO A: LISTAGEM DE ATIVIDADES + SEÇÃO DE PROJETOS ANTIGOS */
+            <div className="space-y-10">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {atividades.map(a => (
-                    <div key={a.id} className="border-4 border-black p-4 bg-white shadow-[4px_4px_0px_black] flex flex-col justify-between">
-                      <div>
-                        <span className="text-[9px] bg-purple-200 px-2 py-0.5 border border-black font-black uppercase">{a.turma}</span>
-                        <h4 className="text-xl font-black uppercase mt-1 tracking-tight">{a.nome}</h4>
-                        <p className="text-[10px] font-bold text-gray-500 mt-2 bg-gray-100 p-1 border border-gray-300 select-all">Código Alunos: {a.id}</p>
-                      </div>
-                      <div className="flex justify-between items-center mt-4 pt-3 border-t-2 border-dashed border-black">
-                        <button onClick={() => excluirAtividadeCompleta(a.id)} className="text-red-600 hover:scale-105" title="Excluir"><Trash2 size={18} /></button>
-                        <button onClick={() => selecionarAtividadeDashboard(a)} className="bg-cyan-300 px-4 py-1.5 border-2 border-black text-xs font-black uppercase shadow-[2px_2px_0px_black]">Ver Dashboard</button>
-                      </div>
+                {/* Criar Atividade */}
+                <div className="bg-yellow-100 p-6 border-4 border-black shadow-[4px_4px_0px_black] h-fit">
+                  <h3 className="font-black uppercase text-lg mb-4 flex items-center gap-2"><FolderPlus size={20} /> Nova Atividade</h3>
+                  <form onSubmit={criarNovaAtividade} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-black uppercase mb-1">Nome da Atividade / Bimestre</label>
+                      <input type="text" value={novaAtivNome} onChange={(e) => setNovaAtivNome(e.target.value)} placeholder="Ex: Projeto Integrador I" className="w-full p-2 border-2 border-black font-bold text-sm bg-white" required />
                     </div>
-                  ))}
+                    <div>
+                      <label className="block text-xs font-black uppercase mb-1">Turma / Curso</label>
+                      <input type="text" value={novaAtivTurma} onChange={(e) => setNovaAtivTurma(e.target.value)} placeholder="Ex: ADM 7ª Semestre" className="w-full p-2 border-2 border-black font-bold text-sm bg-white" required />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-black uppercase mb-1">Nota Máxima da Rodada</label>
+                      <input type="number" value={novaAtivNotaMax} onChange={(e) => setNovaAtivNotaMax(e.target.value)} className="w-full p-2 border-2 border-black font-bold text-sm bg-white" required />
+                    </div>
+                    <button type="submit" className="w-full bg-black text-white py-2 font-black uppercase text-xs border-2 border-black shadow-[2px_2px_0px_rgba(0,0,0,1)]">Cadastrar Atividade</button>
+                  </form>
+                </div>
+
+                {/* Lista de Atividades */}
+                <div className="lg:col-span-2 space-y-4">
+                  <h3 className="font-black uppercase text-lg underline">Atividades Ativas</h3>
+                  {atividades.length === 0 && <p className="text-sm font-bold text-gray-500 italic">Nenhuma atividade criada ainda.</p>}
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {atividades.map(a => (
+                      <div key={a.id} className="border-4 border-black p-4 bg-white shadow-[4px_4px_0px_black] flex flex-col justify-between">
+                        <div>
+                          <span className="text-[9px] bg-purple-200 px-2 py-0.5 border border-black font-black uppercase">{a.turma}</span>
+                          <h4 className="text-xl font-black uppercase mt-1 tracking-tight">{a.nome}</h4>
+                          <p className="text-[10px] font-bold text-gray-500 mt-2 bg-gray-100 p-1 border border-gray-300 select-all">Código Alunos: {a.id}</p>
+                        </div>
+                        <div className="flex justify-between items-center mt-4 pt-3 border-t-2 border-dashed border-black">
+                          <button onClick={() => excluirAtividadeCompleta(a.id)} className="text-red-600 hover:scale-105"><Trash2 size={18} /></button>
+                          <button onClick={() => selecionarAtividadeDashboard(a)} className="bg-cyan-300 px-4 py-1.5 border-2 border-black text-xs font-black uppercase shadow-[2px_2px_0px_black]">Ver Dashboard</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
+              {/* SEÇÃO NOVA: PROJETOS ANTIGOS RECUPERADOS */}
+              <div className="border-4 border-black p-6 bg-orange-50 shadow-[4px_4px_0px_black] space-y-4">
+                <h3 className="font-black uppercase text-lg flex items-center gap-2 text-orange-900"><History size={22}/> Projetos Antigos / Sem Atividade Vinculada ({projetosOrfaos.length})</h3>
+                <p className="text-xs font-bold text-gray-600 leading-relaxed">Estes são os projetos iniciados antes da atualização do painel. Você pode avaliá-los diretamente ou associá-los a uma atividade criada acima para organizá-los.</p>
+                
+                {projetosOrfaos.length === 0 ? (
+                  <p className="text-xs italic text-gray-500 font-bold">Nenhum projeto antigo pendente de vinculação.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {projetosOrfaos.map(p => (
+                      <div key={p.id} className="bg-white border-2 border-black p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-sm font-bold shadow-[2px_2px_0px_black]">
+                        <div>
+                          <p className="uppercase text-base font-black">{p.nomeGrupo || "Grupo Sem Nome"} <span className="text-xs font-normal text-gray-500">({p.empresa || "Sem Empresa"})</span></p>
+                          <p className="text-[10px] text-gray-400 font-mono">ID Único: {p.id}</p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-4 w-full md:w-auto justify-end">
+                          {/* Dropdown para associar à atividade na hora */}
+                          <div className="flex items-center gap-1">
+                            <label className="text-[10px] uppercase font-black text-gray-500">Mover para:</label>
+                            <select 
+                              onChange={(e) => {
+                                if(e.target.value) vincularAtividadeProjetoAntigo(p.id, e.target.value);
+                              }}
+                              className="p-1 border border-black text-xs font-bold bg-yellow-50"
+                              defaultValue=""
+                            >
+                              <option value="" disabled>-- Selecionar --</option>
+                              {atividades.map(a => (
+                                <option key={a.id} value={a.id}>{a.nome} ({a.turma})</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => excluirProjetoDoDashboard(p.id)} className="text-red-500 hover:scale-110 p-1"><Trash2 size={16}/></button>
+                            <button onClick={() => { setFormData(p); setDocId(p.id); setFeedbackConselho(p.feedbackIA || ""); setShowAdmin(false); setStep(5); }} className="bg-black text-white px-3 py-1 border-2 border-black uppercase text-xs font-black flex items-center gap-1">
+                              <Eye size={12}/> Abrir
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             /* VISÃO B: DASHBOARD DETALHADO DA ATIVIDADE SELECIONADA */
@@ -307,10 +373,9 @@ export default function GCLabPro() {
                 <p className="text-xs font-bold mt-2 text-yellow-300">Valor Máximo da Rodada: {atividadeSelecionada.notaMaxima} pontos</p>
               </div>
 
-              {/* LISTA DE PROJETOS DENTRO DA ATIVIDADE */}
               <div className="space-y-4">
                 <h3 className="font-black uppercase text-lg">Mapeamento de Grupos ({projetosFiltrados.length})</h3>
-                {projetosFiltrados.length === 0 && <p className="text-sm font-bold text-gray-500 italic py-6">Nenhum grupo iniciou essa atividade ainda.</p>}
+                {projetosFiltrados.length === 0 && <p className="text-sm font-bold text-gray-500 italic py-6">Nenhum grupo vinculou-se a essa atividade ainda.</p>}
                 
                 <div className="space-y-4">
                   {projetosFiltrados.map(p => {
@@ -327,7 +392,6 @@ export default function GCLabPro() {
                           </div>
                           <p className="text-xs font-medium text-gray-600">Integrantes: {p.alunos?.join(", ")}</p>
                           
-                          {/* Badges de Status do Dashboard */}
                           <div className="flex flex-wrap gap-2 pt-2">
                             <span className={`text-[10px] font-black px-2 py-0.5 border flex items-center gap-1 ${isConcluido ? 'bg-lime-200 text-lime-900 border-lime-600' : 'bg-orange-100 text-orange-900 border-orange-500'}`}>
                               {isConcluido ? <CheckCircle size={12}/> : <Clock size={12}/>}
@@ -342,7 +406,7 @@ export default function GCLabPro() {
                           </div>
                         </div>
 
-                        {/* Atribuição/Alteração de Nota e Ações na Linha */}
+                        {/* ATRIBUIÇÃO DE NOTA CORRIGIDA PARA ONBLUR */}
                         <div className="flex items-center gap-4 w-full lg:w-auto justify-between lg:justify-end border-t-2 lg:border-t-0 pt-3 lg:pt-0 border-dashed border-gray-300">
                           <div className="flex items-center gap-2">
                             <label className="text-xs font-black uppercase">Nota:</label>
@@ -351,37 +415,33 @@ export default function GCLabPro() {
                               step="0.1"
                               max={atividadeSelecionada.notaMaxima}
                               defaultValue={p.notaFinal || ""} 
-                              blur={(e) => salvarNotaProfessor(p.id, e.target.value)}
+                              onBlur={(e) => salvarNotaProfessor(p.id, e.target.value)}
                               placeholder={`0 / ${atividadeSelecionada.notaMaxima}`}
-                              className="w-16 p-1 border-2 border-black font-black text-center text-sm bg-yellow-50"
+                              className="w-16 p-1 border-2 border-black font-black text-center text-sm bg-yellow-50 shadow-[2px_2px_0px_black]"
                             />
-                            <span className="text-[10px] font-bold text-gray-400">/ {atividadeSelecionada.notaMaxima}</span>
                           </div>
 
                           <div className="flex items-center gap-2">
                             <button onClick={() => excluirProjetoDoDashboard(p.id)} className="text-red-500 p-2 hover:scale-105" title="Excluir Grupo"><Trash2 size={18}/></button>
                             <button onClick={() => { setFormData(p); setDocId(p.id); setFeedbackConselho(p.feedbackIA || ""); setShowAdmin(false); setStep(5); }} className="bg-black text-white px-3 py-1.5 font-black uppercase text-xs border-2 border-black flex items-center gap-1 shadow-[2px_2px_0px_rgba(0,0,0,1)]">
-                              <Eye size={14}/> Abrir Relatório
+                              <Eye size={14}/> Relatório
                             </button>
                           </div>
                         </div>
-
                       </div>
                     );
                   })}
                 </div>
               </div>
-
             </div>
           )}
-
         </div>
       </div>
     );
   }
 
   // =========================================================================
-  // RENDER INTERFACE DO ALUNO (COM TRAVA DE ENTRADA POR ATIVIDADE)
+  // INTERFACE INTERATIVA DO ALUNO
   // =========================================================================
   return (
     <div className="min-h-screen bg-pink-500 p-4 md:p-10 font-sans print:bg-white print:p-0">
@@ -412,41 +472,56 @@ export default function GCLabPro() {
         <div className="p-4 md:p-10 bg-gray-50 print:bg-white print:p-0">
           {isSaving && <div className="fixed bottom-5 right-5 bg-black text-lime-400 p-4 border-4 border-lime-400 font-black z-50 print:hidden">SALVANDO...</div>}
 
-          {/* FLUXO OBRIGATÓRIO: BLOQUEIO DE CÓDIGO DE ATIVIDADE */}
-          {step === 1 && !formData.atividadeId && (
-            <div className="max-w-md mx-auto my-10 border-4 border-black p-6 bg-yellow-100 shadow-[6px_6px_0px_black] space-y-4 print:hidden">
-              <h3 className="text-xl font-black uppercase text-center">Acesso ao Laboratório</h3>
-              <p className="text-xs font-bold text-gray-700 leading-relaxed text-center">Para iniciar ou continuar um projeto, digite o Código da Atividade fornecido pelo seu professor em sala de aula.</p>
-              <div className="space-y-2">
-                <input type="text" id="codAtivInput" placeholder="Cole o Código da Atividade aqui..." className="w-full p-3 border-4 border-black font-black text-center text-sm outline-none uppercase bg-white shadow-[3px_3px_0px_black]" />
-                <button onClick={() => {
-                  const val = document.getElementById('codAtivInput').value.trim();
-                  if(val) setFormData(prev => ({ ...prev, atividadeId: val }));
-                }} className="w-full bg-black text-white font-black py-3 border-4 border-black uppercase text-sm tracking-wide shadow-[3px_3px_0px_rgba(0,0,0,1)] hover:bg-gray-800">Vincular Atividade</button>
+          {/* REESTRUTURADO: TELA DE ENTRADA DUPLA (ATIVIDADE NOVA OU RESGATE ANTIGO) */}
+          {step === 1 && !formData.atividadeId && !docId && (
+            <div className="max-w-md mx-auto my-6 space-y-6 print:hidden">
+              {/* Opção A: Entrar em Atividade Nova */}
+              <div className="border-4 border-black p-6 bg-yellow-100 shadow-[6px_6px_0px_black] space-y-4">
+                <h3 className="text-xl font-black uppercase text-center">Nova Rodada / Atividade</h3>
+                <p className="text-xs font-bold text-gray-700 leading-relaxed text-center">Digite o Código da Atividade fornecido pelo professor para iniciar o projeto da sua equipe.</p>
+                <div className="space-y-2">
+                  <input type="text" id="codAtivInput" placeholder="Código da Atividade..." className="w-full p-3 border-4 border-black font-black text-center text-sm outline-none uppercase bg-white shadow-[3px_3px_0px_black]" />
+                  <button onClick={() => {
+                    const val = document.getElementById('codAtivInput').value.trim();
+                    if(val) setFormData(prev => ({ ...prev, atividadeId: val }));
+                  }} className="w-full bg-black text-white font-black py-3 border-4 border-black uppercase text-xs tracking-wide shadow-[3px_3px_0px_rgba(0,0,0,1)] hover:bg-gray-800">Vincular e Iniciar</button>
+                </div>
+              </div>
+
+              {/* Opção B: Resgatar Projetos Órfãos/Antigos */}
+              <div className="border-4 border-black p-5 bg-orange-100 shadow-[6px_6px_0px_black] space-y-3">
+                <h4 className="font-black uppercase text-sm text-center flex items-center justify-center gap-1"><History size={16}/> Resgatar Projeto Antigo</h4>
+                <p className="text-[11px] font-bold text-gray-600 text-center">Se o seu grupo já começou um projeto antes do painel de atividades, digite o Token/ID do Grupo abaixo para carregá-lo.</p>
+                <div className="flex">
+                  <input type="text" id="inputCodigoAntigo" placeholder="Token / ID do Grupo..." className="p-2 border-4 border-black outline-none font-bold text-xs w-full bg-white" />
+                  <button onClick={() => carregarProjetoPeloId(document.getElementById('inputCodigoAntigo').value)} className="bg-orange-500 text-white px-4 font-black uppercase text-xs border-y-4 border-r-4 border-black hover:bg-orange-600">Resgatar</button>
+                </div>
               </div>
             </div>
           )}
 
-          {/* ETAPA 1 - REGISTRO DO GRUPO (Só libera se tiver atividadeId) */}
-          {step === 1 && formData.atividadeId && (
+          {/* ETAPA 1 - FORMULÁRIO DO GRUPO */}
+          {step === 1 && (formData.atividadeId || docId) && (
             <div className="space-y-6 print:hidden">
               {!docId && (
-                <div className="border-4 border-black p-4 bg-orange-100 shadow-[4px_4px_0px_black] flex flex-col md:flex-row justify-between items-center gap-4">
+                <div className="border-4 border-black p-4 bg-purple-50 shadow-[4px_4px_0px_black] flex flex-col md:flex-row justify-between items-center gap-4">
                   <div>
-                    <h3 className="font-black uppercase text-base">Sua equipe já iniciou o projeto antes?</h3>
-                    <p className="text-xs font-bold">Cole o Token/ID único do Grupo para recuperar o progresso.</p>
+                    <h3 className="font-black uppercase text-sm">Entrando via código de atividade</h3>
+                    <p className="text-[11px] font-bold text-purple-900">Se você já criou o grupo nesta atividade e quer apenas continuar, cole o ID do Grupo ao lado.</p>
                   </div>
                   <div className="flex w-full md:w-auto">
-                    <input type="text" id="inputCodigo" placeholder="ID do Grupo..." className="p-2 border-4 border-black outline-none font-bold text-sm w-full bg-white" />
-                    <button onClick={() => carregarProjetoPeloId(document.getElementById('inputCodigo').value)} className="bg-black text-white px-4 font-black uppercase text-sm border-y-4 border-r-4 border-black">Acessar</button>
+                    <input type="text" id="inputCodigo" placeholder="ID do Grupo..." className="p-2 border-4 border-black outline-none font-bold text-xs w-full bg-white" />
+                    <button onClick={() => carregarProjetoPeloId(document.getElementById('inputCodigo').value)} className="bg-black text-white px-4 font-black uppercase text-xs border-y-4 border-r-4 border-black">Carregar</button>
                   </div>
                 </div>
               )}
+              
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div><label className="font-black uppercase text-[11px]">Nome Fantasia do Grupo</label><input type="text" name="nomeGrupo" value={formData.nomeGrupo} onChange={handleChange} className={inputStyle} /></div>
                 <div><label className="font-black uppercase text-[11px]">Empresa Alvo</label><input type="text" name="empresa" value={formData.empresa} onChange={handleChange} className={inputStyle} /></div>
                 <div><label className="font-black uppercase text-[11px]">Setor / Área de Negócio</label><input type="text" name="area" value={formData.area} onChange={handleChange} className={inputStyle} /></div>
               </div>
+              
               <div className="border-4 border-black p-4 bg-white">
                 <label className="font-black uppercase block mb-2 italic">Consultores da Equipe (Máx 6)</label>
                 <div className="flex gap-2 mb-4">
@@ -462,6 +537,12 @@ export default function GCLabPro() {
                   ))}
                 </div>
               </div>
+
+              {docId && (
+                <div className="p-3 bg-gray-900 text-lime-400 font-mono text-[10px] uppercase border-4 border-black select-all">
+                  Token Seguro de Acesso do seu Grupo (Guarde e Compartilhe com a Equipe): {docId}
+                </div>
+              )}
             </div>
           )}
 
@@ -547,7 +628,7 @@ export default function GCLabPro() {
                  )}
               </div>
 
-              {/* SANITY CHECK */}
+              {/* FILTRO DE REALIDADE */}
               <div className="p-6 bg-red-400 border-4 border-black space-y-4">
                 <h3 className="text-xl font-black uppercase">Filtro de Realidade</h3>
                 <div className="space-y-4 bg-white p-4 border-4 border-black">
@@ -584,7 +665,7 @@ export default function GCLabPro() {
                 <div className="grid grid-cols-2 gap-6 mb-10 text-sm">
                   <div>
                     <p className="text-gray-400 uppercase text-[10px] font-bold tracking-widest mb-1">Empresa / Setor Foco</p>
-                    <p className="font-bold text-lg text-gray-900">{formData.empresa} <span className="font-normal text-gray-500 text-sm">({formData.area})</span></p>
+                    <p className="font-bold text-lg text-gray-900">{formData.empresa} <span className="font-normal text-gray-500 text-sm">({formData.area || "Geral"})</span></p>
                   </div>
                   <div>
                     <p className="text-gray-400 uppercase text-[10px] font-bold tracking-widest mb-1">Consultores (Equipe)</p>
@@ -592,7 +673,6 @@ export default function GCLabPro() {
                   </div>
                 </div>
 
-                {/* Exibição da nota no relatório caso ela já exista */}
                 {formData.notaFinal !== undefined && formData.notaFinal !== "" && (
                   <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-sm text-sm font-bold text-blue-950 flex justify-between items-center">
                     <span>Métrica de Desempenho / Avaliação do Consultor:</span>
@@ -647,11 +727,26 @@ export default function GCLabPro() {
 
               {/* PAINEL EXCLUSIVO DO PROFESSOR DENTRO DO TRABALHO */}
               {isAdminAuth && (
-                <div className="mt-8 bg-purple-100 border-4 border-purple-900 p-6 print:hidden shadow-[8px_8px_0px_#4c1d95] mx-auto max-w-4xl">
-                  <h3 className="text-xl font-black uppercase text-purple-900 mb-2 flex items-center gap-2">Avaliação do Avaliador</h3>
+                <div className="mt-8 bg-purple-100 border-4 border-purple-900 p-6 print:hidden shadow-[8px_8px_0px_#4c1d95] mx-auto max-w-4xl space-y-4">
+                  <h3 className="text-xl font-black uppercase text-purple-900 flex items-center gap-2">Avaliação do Avaliador</h3>
                   
+                  {/* SUPORTE PARA ASSOCIAÇÃO RETROATIVA SE FOR UM PROJETO ANTIGO */}
+                  <div className="bg-white p-4 border-2 border-purple-900 flex items-center justify-between text-sm">
+                    <span className="font-bold">Vincular a uma Atividade / Turma:</span>
+                    <select 
+                      value={formData.atividadeId || ""} 
+                      onChange={(e) => vincularAtividadeProjetoAntigo(docId, e.target.value)}
+                      className="p-2 border-2 border-black font-bold text-xs bg-yellow-50"
+                    >
+                      <option value="">-- Escolha a Atividade --</option>
+                      {atividades.map(a => (
+                        <option key={a.id} value={a.id}>{a.nome} ({a.turma})</option>
+                      ))}
+                    </select>
+                  </div>
+
                   {/* Campo de alteração dinâmica de nota direta */}
-                  <div className="bg-white p-4 border-2 border-purple-900 mb-4 flex items-center justify-between">
+                  <div className="bg-white p-4 border-2 border-purple-900 flex items-center justify-between">
                     <span className="font-bold text-sm">Definir/Modificar Nota da Rodada:</span>
                     <div className="flex items-center gap-2">
                       <input 
@@ -659,10 +754,10 @@ export default function GCLabPro() {
                         step="0.1" 
                         value={formData.notaFinal || ""} 
                         onChange={(e) => setFormData({ ...formData, notaFinal: e.target.value })}
+                        onBlur={(e) => salvarNotaProfessor(docId, e.target.value)}
                         placeholder="Nota"
                         className="w-20 p-2 border-2 border-black font-black text-center"
                       />
-                      <button onClick={() => salvarNotaProfessor(docId, formData.notaFinal)} className="bg-purple-900 text-white px-4 py-2 font-black uppercase text-xs border-2 border-black">Salvar</button>
                     </div>
                   </div>
 
@@ -673,7 +768,7 @@ export default function GCLabPro() {
                   ) : (
                     <div className="space-y-4">
                       <div className="bg-white p-6 border-2 border-purple-900 text-sm whitespace-pre-wrap leading-relaxed">{formData.avaliacaoProfessorIA}</div>
-                      <button onClick={gerarAvaliacaoProfessor} disabled={isIAProfWait} className="text-xs font-black uppercase underline text-purple-900">↻ Refazer Dossiê</button>
+                      <button onClick={gerarAvaliacaoProfessor} disabled={isIAProfWait} className="text-xs font-black uppercase underline text-purple-900">A atualizar Parecer da IA</button>
                     </div>
                   )}
                 </div>
@@ -682,7 +777,7 @@ export default function GCLabPro() {
           )}
 
           {/* Controle Inferior Aluno */}
-          {formData.atividadeId && (
+          {(formData.atividadeId || docId) && (
             <div className="mt-12 flex justify-between gap-4 print:hidden">
               {step > 1 && <button onClick={() => setStep(step - 1)} className={`${btnBrutal} bg-white`}>Voltar</button>}
               {step < 4 ? (
