@@ -100,13 +100,29 @@ export default function GCLabPro() {
     } catch (e) { console.error(e); }
   };
 
-  const salvarNoFirebase = async (proximoPasso) => {
+  cconst salvarNoFirebase = async (proximoPasso) => {
     if (!formData.atividadeId && !docId) {
       alert("Erro: Escolha a atividade antes de iniciar um novo projeto.");
       return;
     }
     setIsSaving(true);
     try {
+      // PROTEÇÃO EXTRA AQUI: Se por acaso vier indefinido, vira 1.
+      const etapaAtual = formData.etapaConcluida || 1;
+      const novaEtapa = proximoPasso > etapaAtual ? proximoPasso : etapaAtual;
+      
+      const payload = { ...formData, etapaConcluida: novaEtapa, updatedAt: serverTimestamp() };
+      if (!docId) {
+        const docRef = await addDoc(collection(db, "projetos_gc"), { ...payload, createdAt: serverTimestamp() });
+        setDocId(docRef.id);
+        window.history.replaceState(null, '', `?id=${docRef.id}`);
+      } else {
+        await updateDoc(doc(db, "projetos_gc", docId), payload);
+      }
+      if (proximoPasso) setStep(proximoPasso);
+    } catch (e) { console.error(e); }
+    setIsSaving(false);
+  };
       const novaEtapa = proximoPasso > formData.etapaConcluida ? proximoPasso : formData.etapaConcluida;
       const payload = { ...formData, etapaConcluida: novaEtapa, updatedAt: serverTimestamp() };
       if (!docId) {
