@@ -85,9 +85,13 @@ export default function GCLabPro() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (!data.evidencias) data.evidencias = [];
+        
+        // A SALVAÇÃO DOS PROJETOS ANTIGOS AQUI:
+        if (!data.etapaConcluida) data.etapaConcluida = 1;
+
         setFormData(data);
         setDocId(docSnap.id);
-        setStep(data.etapaConcluida || 1);
+        setStep(data.etapaConcluida);
         if(data.feedbackIA) setFeedbackConselho(data.feedbackIA);
         window.history.replaceState(null, '', `?id=${docSnap.id}`);
       } else {
@@ -714,7 +718,7 @@ export default function GCLabPro() {
 
               {isAdminAuth && (
                 <div className="mt-8 bg-purple-100 border-4 border-purple-900 p-6 print:hidden shadow-[8px_8px_0px_#4c1d95] mx-auto max-w-4xl space-y-4">
-                  <h3 className="text-xl font-black uppercase text-purple-900 flex items-center gap-2">Avaliação do Avaliador</h3>
+                  <h3 className="text-xl font-black uppercase text-purple-900 flex items-center gap-2">Avaliação do Professor</h3>
                   
                   <div className="bg-white p-4 border-2 border-purple-900 flex items-center justify-between text-sm">
                     <span className="font-bold">Vincular a uma Atividade / Turma:</span>
