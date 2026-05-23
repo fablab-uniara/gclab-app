@@ -83,8 +83,6 @@ export default function GCLabPro() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (!data.evidencias) data.evidencias = [];
-        
-        // A SALVAÇÃO DOS PROJETOS ANTIGOS AQUI:
         if (!data.etapaConcluida) data.etapaConcluida = 1;
 
         setFormData(data);
@@ -105,7 +103,6 @@ export default function GCLabPro() {
     }
     setIsSaving(true);
     try {
-      // PROTEÇÃO EXTRA AQUI: Se por acaso vier indefinido, vira 1.
       const etapaAtual = formData.etapaConcluida || 1;
       const novaEtapa = proximoPasso > etapaAtual ? proximoPasso : etapaAtual;
       
@@ -239,7 +236,7 @@ export default function GCLabPro() {
   const copiarLinkDoGrupo = () => {
     const url = `${window.location.origin}?id=${docId}`;
     navigator.clipboard.writeText(url);
-    alert("Link do grupo copiado!");
+    alert("Link do grupo copiado com sucesso! Mande no WhatsApp da equipe.");
   };
 
   const handleChange = (e) => {
@@ -391,6 +388,12 @@ export default function GCLabPro() {
                             <h4 className="text-lg font-black uppercase">{p.nomeGrupo || "Sem Nome"}</h4>
                             <span className="text-[10px] px-2 font-bold bg-gray-100 border border-black">{p.empresa}</span>
                           </div>
+                          
+                          {/* A MÁGICA AQUI: TOKEN DO GRUPO VISÍVEL NO DASHBOARD */}
+                          <p className="text-[11px] font-mono text-purple-800 bg-purple-100 px-2 py-0.5 inline-block border border-purple-300 font-black select-all my-1">
+                            TOKEN: {p.id}
+                          </p>
+                          
                           <p className="text-xs font-medium text-gray-600">Integrantes: {p.alunos?.join(", ")}</p>
                           
                           <div className="flex flex-wrap gap-2 pt-2">
@@ -454,7 +457,7 @@ export default function GCLabPro() {
           </div>
           <div className="flex flex-wrap justify-center gap-3 items-center">
             {docId && (
-              <button onClick={copiarLinkDoGrupo} className="bg-white text-black p-2 border-2 border-black text-xs uppercase font-black flex items-center gap-2 shadow-[2px_2px_0px_black]">
+              <button onClick={copiarLinkDoGrupo} className="bg-white text-black p-2 border-2 border-black text-xs uppercase font-black flex items-center gap-2 shadow-[2px_2px_0px_black] hover:bg-cyan-200 transition-all">
                 <Link size={16} /> Link do Grupo
               </button>
             )}
@@ -718,7 +721,7 @@ export default function GCLabPro() {
 
               {isAdminAuth && (
                 <div className="mt-8 bg-purple-100 border-4 border-purple-900 p-6 print:hidden shadow-[8px_8px_0px_#4c1d95] mx-auto max-w-4xl space-y-4">
-                  <h3 className="text-xl font-black uppercase text-purple-900 flex items-center gap-2">Avaliação do Professor</h3>
+                  <h3 className="text-xl font-black uppercase text-purple-900 flex items-center gap-2">Avaliação do Avaliador</h3>
                   
                   <div className="bg-white p-4 border-2 border-purple-900 flex items-center justify-between text-sm">
                     <span className="font-bold">Vincular a uma Atividade / Turma:</span>
