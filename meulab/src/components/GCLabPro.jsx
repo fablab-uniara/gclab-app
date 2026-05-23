@@ -54,7 +54,6 @@ export default function GCLabPro() {
     tecnologia: ["Silos no WhatsApp", "Sistemas difíceis", "Sem base central", "Busca ineficiente", "Muitas planilhas"]
   };
 
-  // NOVA FUNÇÃO: Busca as atividades de forma pública para o menu do aluno
   const buscarAtividadesPublicas = async () => {
     try {
       const qAct = query(collection(db, "atividades_gc"), orderBy("createdAt", "desc"));
@@ -72,7 +71,6 @@ export default function GCLabPro() {
     if (id) carregarProjetoPeloId(id);
     if (act) setFormData(prev => ({ ...prev, atividadeId: act }));
     
-    // Assim que a tela carrega, ele puxa as atividades criadas pelo professor
     buscarAtividadesPublicas();
   }, []);
 
@@ -100,7 +98,7 @@ export default function GCLabPro() {
     } catch (e) { console.error(e); }
   };
 
-  cconst salvarNoFirebase = async (proximoPasso) => {
+  const salvarNoFirebase = async (proximoPasso) => {
     if (!formData.atividadeId && !docId) {
       alert("Erro: Escolha a atividade antes de iniciar um novo projeto.");
       return;
@@ -111,19 +109,6 @@ export default function GCLabPro() {
       const etapaAtual = formData.etapaConcluida || 1;
       const novaEtapa = proximoPasso > etapaAtual ? proximoPasso : etapaAtual;
       
-      const payload = { ...formData, etapaConcluida: novaEtapa, updatedAt: serverTimestamp() };
-      if (!docId) {
-        const docRef = await addDoc(collection(db, "projetos_gc"), { ...payload, createdAt: serverTimestamp() });
-        setDocId(docRef.id);
-        window.history.replaceState(null, '', `?id=${docRef.id}`);
-      } else {
-        await updateDoc(doc(db, "projetos_gc", docId), payload);
-      }
-      if (proximoPasso) setStep(proximoPasso);
-    } catch (e) { console.error(e); }
-    setIsSaving(false);
-  };
-      const novaEtapa = proximoPasso > formData.etapaConcluida ? proximoPasso : formData.etapaConcluida;
       const payload = { ...formData, etapaConcluida: novaEtapa, updatedAt: serverTimestamp() };
       if (!docId) {
         const docRef = await addDoc(collection(db, "projetos_gc"), { ...payload, createdAt: serverTimestamp() });
@@ -149,7 +134,7 @@ export default function GCLabPro() {
       });
       setNovaAtivNome("");
       setNovaAtivTurma("");
-      buscarAtividadesPublicas(); // Recarrega a lista
+      buscarAtividadesPublicas(); 
       alert("Atividade criada com sucesso!");
     } catch (e) { console.error(e); }
   };
@@ -160,7 +145,7 @@ export default function GCLabPro() {
       if (senha !== "uniara2024") return;
       setIsAdminAuth(true);
     }
-    await buscarAtividadesPublicas(); // Garante que a lista tá fresquinha
+    await buscarAtividadesPublicas(); 
     const qProj = query(collection(db, "projetos_gc"), orderBy("createdAt", "desc"));
     const snapProj = await getDocs(qProj);
     setProjetosRemotos(snapProj.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -411,7 +396,7 @@ export default function GCLabPro() {
                           <div className="flex flex-wrap gap-2 pt-2">
                             <span className={`text-[10px] font-black px-2 py-0.5 border flex items-center gap-1 ${isConcluido ? 'bg-lime-200 text-lime-900 border-lime-600' : 'bg-orange-100 text-orange-900 border-orange-500'}`}>
                               {isConcluido ? <CheckCircle size={12}/> : <Clock size={12}/>}
-                              {isConcluido ? 'CONCLUÍDO' : `NA ETAPA ${p.etapaConcluida}`}
+                              {isConcluido ? 'CONCLUÍDO' : `NA ETAPA ${p.etapaConcluida || 1}`}
                             </span>
                             <span className={`text-[10px] font-black px-2 py-0.5 border ${temParecerIA ? 'bg-purple-200 text-purple-900 border-purple-500' : 'bg-gray-100 text-gray-400 border-gray-300'}`}>
                               {temParecerIA ? '🤖 PARECER IA GERADO' : '⏳ SEM PARECER IA'}
@@ -483,7 +468,6 @@ export default function GCLabPro() {
         <div className="p-4 md:p-10 bg-gray-50 print:bg-white print:p-0">
           {isSaving && <div className="fixed bottom-5 right-5 bg-black text-lime-400 p-4 border-4 border-lime-400 font-black z-50 print:hidden">SALVANDO...</div>}
 
-          {/* O NOVO MENU DE ATIVIDADES PARA O ALUNO */}
           {step === 1 && !formData.atividadeId && !docId && (
             <div className="max-w-md mx-auto my-6 space-y-6 print:hidden">
               <div className="border-4 border-black p-6 bg-yellow-100 shadow-[6px_6px_0px_black] space-y-4">
