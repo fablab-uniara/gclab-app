@@ -208,31 +208,37 @@ export default function GCLabPro() {
     setIsIAProfWait(false);
   };
 
+  // VERSÃO AJUSTADA: PROMPT IMPERATIVO E ULTRAESTRUTURADO
   const gerarProvaDoGrupo = async () => {
     setIsProvaWait(true);
-    const prompt = `Aja como o professor Gerson Braz, elaborando uma prova oficial para a disciplina de Gestão do Conhecimento, do curso de Sistemas de Informação da Uniara.
-    Você deve criar uma prova com EXATAMENTE 6 questões de Múltipla Escolha (A, B, C, D).
+    const prompt = `Você é o Professor Gerson Braz. Sua missão é gerar uma avaliação acadêmica oficial e rigorosa. É REQUISITO OBRIGATÓRIO que você siga exatamente a estrutura e o número de questões solicitados abaixo. Não pule nenhuma seção.
 
-    DIVISÃO DA PROVA:
-    - Questões 1 a 3: Devem cobrar CONCEITOS TEÓRICOS GERAIS de Gestão do Conhecimento.
-    - Questões 4 a 6: Devem ser PEGADINHAS baseadas estritamente nos DETALHES do projeto que o grupo deste aluno fez. Os distratores (alternativas erradas) devem confundir quem não fez o trabalho.
+    ESTRUTURA OBRIGATÓRIA DA RESPOSTA (Gere o texto seguindo estritamente esta ordem):
 
-    DADOS DO PROJETO DO GRUPO PARA AS QUESTÕES 4 A 6:
-    - Empresa: ${formData.empresa}
-    - Problema Identificado: ${formData.gapPrincipal}
-    - Ferramenta (Fase 2): ${formData.f2Ferramenta}
-    - Justificativa Tempo: ${formData.justTempo}
-
-    FORMATAÇÃO OBRIGATÓRIA:
-    Inicie o texto exatamente com este cabeçalho:
+    1. CABEÇALHO EXATO:
     INSTITUIÇÃO: Uniara
     CURSO: Sistemas de Informação
     DISCIPLINA: Gestão do Conhecimento
     PROFESSOR: Gerson Braz
     ALUNO(A): [NOME_DO_ALUNO]
-    
-    (Não preencha o nome do aluno, deixe a tag [NOME_DO_ALUNO] escrita exatamente assim para o sistema substituir depois).
-    Forneça o GABARITO destacado no final.`;
+
+    2. QUESTÕES TEÓRICAS DE GESTÃO DO CONHECIMENTO (Questões 1, 2 e 3):
+    Crie exatamente 3 questões de múltipla escolha (A, B, C, D) focadas em conceitos fundamentais e teóricos de Gestão do Conhecimento (exemplos: conhecimento tácito vs. explícito, espiral do conhecimento de Nonaka e Takeuchi, silos organizacionais, barreiras culturais de compartilhamento, socialização ou externalização). Estas questões devem testar a teoria pura da disciplina, independente do projeto do grupo.
+
+    3. QUESTÕES PRÁTICAS AUDITORIA DO PROJETO (Questões 4, 5 e 6):
+    Crie exatamente 3 questões de múltipla escolha (A, B, C, D) baseadas estritamente nas decisões tomadas por este grupo no relatório abaixo. O objetivo é que um aluno "carona" que não participou das discussões erre a questão.
+    Use estes dados reais do grupo para criar as perguntas 4, 5 e 6:
+    - Empresa analisada: ${formData.empresa}
+    - Gargalo/Problema central mapeado: ${formData.gapPrincipal}
+    - Ferramenta tecnológica escolhida para a Fase 2: ${formData.f2Ferramenta}
+    - Justificativa de tempo na rotina interna: ${formData.justTempo}
+
+    4. GABARITO OFICIAL:
+    No final de tudo, inclua o gabarito com a alternativa correta para cada uma das 6 questões.
+
+    REGRAS CRÍTICAS:
+    - A prova deve conter um total de EXATAMENTE 6 questões.
+    - Mantenha a tag [NOME_DO_ALUNO] escrita exatamente dessa forma, sem tentar preenchê-la.`;
 
     try {
       const response = await fetch('/api/validar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
@@ -244,7 +250,6 @@ export default function GCLabPro() {
     } catch (e) { alert("Erro de resposta da IA ao gerar prova."); }
     setIsProvaWait(false);
   };
-
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file || formData.evidencias?.length >= 5) return;
