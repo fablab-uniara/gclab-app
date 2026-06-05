@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Info, Lightbulb, ClipboardCheck, Rocket, UploadCloud, Link, Users, Eye, MessageSquareQuote, ShieldCheck, FolderPlus, ArrowLeft, CheckCircle, Clock, History, LogOut, Settings, Award, FileText } from 'lucide-react';
+import { Plus, Trash2, Info, Lightbulb, ClipboardCheck, Rocket, UploadCloud, Link, Users, Eye, MessageSquareQuote, ShieldCheck, FolderPlus, ArrowLeft, CheckCircle, Clock, History, FileText, Award } from 'lucide-react';
 import { db, storage } from '../firebase';
 import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, getDocs, query, orderBy, getDoc, where } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
@@ -21,6 +21,9 @@ export default function GCLabPro() {
   const [projetosRemotos, setProjetosRemotos] = useState([]);
   const [projetosFiltrados, setProjetosFiltrados] = useState([]);
   
+  // Estados para a Prova Personalizada
+  const [alunoSelecionadoProva, setAlunoSelecionadoProva] = useState("");
+
   // Formulário para criar atividade
   const [novaAtivNome, setNovaAtivNome] = useState("");
   const [novaAtivTurma, setNovaAtivTurma] = useState("");
@@ -30,7 +33,7 @@ export default function GCLabPro() {
   const [feedbackConselho, setFeedbackConselho] = useState("");
   const [isIAWait, setIsIAWait] = useState(false);
   const [isIAProfWait, setIsIAProfWait] = useState(false);
-  const [isProvaWait, setIsProvaWait] = useState(false); // Novo estado para a geração da prova
+  const [isProvaWait, setIsProvaWait] = useState(false); 
 
   const [formData, setFormData] = useState({
     atividadeId: '', 
@@ -44,7 +47,7 @@ export default function GCLabPro() {
     chkOrcamento: false, justOrcamento: '',
     chkTempo: false, justTempo: '',
     chkManutencao: false, justManutencao: '',
-    evidencias: [], feedbackIA: '', avaliacaoProfessorIA: '', provaProfessorIA: '', // Adicionado campo da prova
+    evidencias: [], feedbackIA: '', avaliacaoProfessorIA: '', provaProfessorIA: '', 
     notaFinal: '', 
     etapaConcluida: 1
   });
@@ -55,14 +58,15 @@ export default function GCLabPro() {
     tecnologia: ["Silos no WhatsApp", "Sistemas difíceis", "Sem base central", "Busca ineficiente", "Muitas planilhas"]
   };
 
+  const inputStyle = "w-full p-3 border-4 border-black bg-white focus:bg-yellow-100 outline-none shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-all font-bold text-black text-sm";
+  const btnBrutal = "px-6 py-3 border-4 border-black font-black uppercase shadow-[4px_4px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all flex items-center justify-center gap-2 text-xs md:text-sm";
+
   const buscarAtividadesPublicas = async () => {
     try {
       const qAct = query(collection(db, "atividades_gc"), orderBy("createdAt", "desc"));
       const snapAct = await getDocs(qAct);
       setAtividades(snapAct.docs.map(d => ({ id: d.id, ...d.data() })));
-    } catch (e) {
-      console.error("Erro ao carregar lista de atividades", e);
-    }
+    } catch (e) { console.error("Erro ao carregar atividades", e); }
   };
 
   useEffect(() => {
@@ -71,7 +75,6 @@ export default function GCLabPro() {
     const act = params.get('act');
     if (id) carregarProjetoPeloId(id);
     if (act) setFormData(prev => ({ ...prev, atividadeId: act }));
-    
     buscarAtividadesPublicas();
   }, []);
 
@@ -85,28 +88,22 @@ export default function GCLabPro() {
         const data = docSnap.data();
         if (!data.evidencias) data.evidencias = [];
         if (!data.etapaConcluida) data.etapaConcluida = 1;
-
         setFormData(data);
         setDocId(docSnap.id);
         setStep(data.etapaConcluida);
+        if(data.alunos && data.alunos.length > 0) setAlunoSelecionadoProva(data.alunos[0]);
         if(data.feedbackIA) setFeedbackConselho(data.feedbackIA);
         window.history.replaceState(null, '', `?id=${docSnap.id}`);
-      } else {
-        alert("Código ou ID de projeto não encontrado!");
-      }
+      } else { alert("Projeto não encontrado!"); }
     } catch (e) { console.error(e); }
   };
 
   const salvarNoFirebase = async (proximoPasso) => {
-    if (!formData.atividadeId && !docId) {
-      alert("Erro: Escolha a atividade antes de iniciar um novo projeto.");
-      return;
-    }
+    if (!formData.atividadeId && !docId) { alert("Escolha a atividade antes de iniciar."); return; }
     setIsSaving(true);
     try {
       const etapaAtual = formData.etapaConcluida || 1;
       const novaEtapa = proximoPasso > etapaAtual ? proximoPasso : etapaAtual;
-      
       const payload = { ...formData, etapaConcluida: novaEtapa, updatedAt: serverTimestamp() };
       if (!docId) {
         const docRef = await addDoc(collection(db, "projetos_gc"), { ...payload, createdAt: serverTimestamp() });
@@ -125,21 +122,16 @@ export default function GCLabPro() {
     if(!novaAtivNome || !novaAtivTurma) return;
     try {
       await addDoc(collection(db, "atividades_gc"), {
-        nome: novaAtivNome,
-        turma: novaAtivTurma,
-        notaMaxima: novaAtivNotaMax,
-        createdAt: serverTimestamp()
+        nome: novaAtivNome, turma: novaAtivTurma, notaMaxima: novaAtivNotaMax, createdAt: serverTimestamp()
       });
-      setNovaAtivNome("");
-      setNovaAtivTurma("");
-      buscarAtividadesPublicas(); 
+      setNovaAtivNome(""); setNovaAtivTurma(""); buscarAtividadesPublicas(); 
       alert("Atividade criada com sucesso!");
     } catch (e) { console.error(e); }
   };
 
   const carregarAtividadesDoBanco = async () => {
     if (!isAdminAuth) {
-      const senha = prompt("Senha Master do Professor:");
+      const senha = prompt("Senha do Professor:");
       if (senha !== "uniara2024") return;
       setIsAdminAuth(true);
     }
@@ -168,7 +160,7 @@ export default function GCLabPro() {
   const vincularAtividadeProjetoAntigo = async (pId, actId) => {
     try {
       await updateDoc(doc(db, "projetos_gc", pId), { atividadeId: actId });
-      alert("Projeto vinculado com sucesso à atividade!");
+      alert("Projeto vinculado à atividade!");
       carregarAtividadesDoBanco();
     } catch (e) { alert("Erro ao vincular atividade."); }
   };
@@ -191,7 +183,7 @@ export default function GCLabPro() {
 
   const validarComConselho = async () => {
     setIsIAWait(true);
-    const prompt = `Analise criticamente: Problema: ${formData.gapPrincipal}. Solução proposta: Engajamento (${formData.f1AcaoEngajamento}), TI (${formData.f2Ferramenta}), Piloto (${formData.f3SetorPiloto}). Retorne 3 perguntas socráticas duras sobre a viabilidade prática.`;
+    const prompt = `Analise criticamente: Problema: ${formData.gapPrincipal}. Solução: Engajamento (${formData.f1AcaoEngajamento}), TI (${formData.f2Ferramenta}), Piloto (${formData.f3SetorPiloto}). Retorne 3 perguntas socráticas duras sobre a viabilidade prática.`;
     try {
       const response = await fetch('/api/validar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
       const data = await response.json();
@@ -205,7 +197,7 @@ export default function GCLabPro() {
 
   const gerarAvaliacaoProfessor = async () => {
     setIsIAProfWait(true);
-    const prompt = `Aja como um professor avaliador de Gestão do Conhecimento. Analise as respostas deste grupo e indique detalhadamente: 1) Pontos Fortes, 2) Pontos Fracos, 3) Nota Sugerida de 0 a 10 baseado na solidez das respostas. Projeto: Problema: ${formData.gapPrincipal}, Roadmap: ${formData.f1AcaoEngajamento} -> ${formData.f2Ferramenta}, Defesa: ${formData.justOrcamento} / ${formData.justTempo}.`;
+    const prompt = `Aja como o professor avaliador Gerson Braz de Gestão do Conhecimento. Analise as respostas deste grupo e indique detalhadamente: 1) Pontos Fortes, 2) Pontos Fracos, 3) Nota Sugerida de 0 a 10. Projeto: Problema: ${formData.gapPrincipal}, Roadmap: ${formData.f1AcaoEngajamento} -> ${formData.f2Ferramenta}, Defesa: ${formData.justOrcamento} / ${formData.justTempo}.`;
     try {
       const response = await fetch('/api/validar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
       const data = await response.json();
@@ -216,22 +208,31 @@ export default function GCLabPro() {
     setIsIAProfWait(false);
   };
 
-  // NOVA FUNÇÃO: Gerador de Prova Anti-Turista
   const gerarProvaDoGrupo = async () => {
     setIsProvaWait(true);
-    const prompt = `Você é um professor universitário rigoroso montando uma prova anti-fraude. 
-    Abaixo estão os dados de um projeto fictício montado por um grupo de alunos. 
-    Seu objetivo é criar 3 questões de MÚLTIPLA ESCOLHA (A, B, C, D) focadas estritamente nos *detalhes específicos* das decisões tomadas por este grupo no relatório. 
-    O objetivo é que um aluno que NÃO participou das discussões do grupo não consiga acertar, pois as alternativas falsas devem ser plausíveis mas incorretas para este caso.
-    Forneça o GABARITO destacado no final.
+    const prompt = `Aja como o professor Gerson Braz, elaborando uma prova oficial para a disciplina de Gestão do Conhecimento, do curso de Sistemas de Informação da Uniara.
+    Você deve criar uma prova com EXATAMENTE 6 questões de Múltipla Escolha (A, B, C, D).
 
-    DADOS DO RELATÓRIO DO GRUPO:
+    DIVISÃO DA PROVA:
+    - Questões 1 a 3: Devem cobrar CONCEITOS TEÓRICOS GERAIS de Gestão do Conhecimento.
+    - Questões 4 a 6: Devem ser PEGADINHAS baseadas estritamente nos DETALHES do projeto que o grupo deste aluno fez. Os distratores (alternativas erradas) devem confundir quem não fez o trabalho.
+
+    DADOS DO PROJETO DO GRUPO PARA AS QUESTÕES 4 A 6:
     - Empresa: ${formData.empresa}
-    - Problema Mapeado: ${formData.gapPrincipal}
-    - Ação de Sensibilização (Fase 1): ${formData.f1AcaoEngajamento}
-    - Ferramenta Tecnológica Escolhida (Fase 2): ${formData.f2Ferramenta}
-    - Justificativa de Tempo na Rotina: ${formData.justTempo}
-    `;
+    - Problema Identificado: ${formData.gapPrincipal}
+    - Ferramenta (Fase 2): ${formData.f2Ferramenta}
+    - Justificativa Tempo: ${formData.justTempo}
+
+    FORMATAÇÃO OBRIGATÓRIA:
+    Inicie o texto exatamente com este cabeçalho:
+    INSTITUIÇÃO: Uniara
+    CURSO: Sistemas de Informação
+    DISCIPLINA: Gestão do Conhecimento
+    PROFESSOR: Gerson Braz
+    ALUNO(A): [NOME_DO_ALUNO]
+    
+    (Não preencha o nome do aluno, deixe a tag [NOME_DO_ALUNO] escrita exatamente assim para o sistema substituir depois).
+    Forneça o GABARITO destacado no final.`;
 
     try {
       const response = await fetch('/api/validar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
@@ -239,6 +240,7 @@ export default function GCLabPro() {
       const textoIA = data.candidates[0].content.parts[0].text;
       setFormData(prev => ({ ...prev, provaProfessorIA: textoIA }));
       await updateDoc(doc(db, "projetos_gc", docId), { provaProfessorIA: textoIA });
+      if (formData.alunos && formData.alunos.length > 0) setAlunoSelecionadoProva(formData.alunos[0]);
     } catch (e) { alert("Erro de resposta da IA ao gerar prova."); }
     setIsProvaWait(false);
   };
@@ -253,17 +255,14 @@ export default function GCLabPro() {
       getDownloadURL(uploadTask.snapshot.ref).then((url) => {
         const novas = [...(formData.evidencias || []), { nome: file.name, url: url }];
         setFormData({ ...formData, evidencias: novas });
-        setIsSaving(false);
-        setUploadProgress(0);
-        updateDoc(doc(db, "projetos_gc", docId), { evidencias: novas });
+        setIsSaving(false); updateDoc(doc(db, "projetos_gc", docId), { evidencias: novas });
       });
     });
   };
 
   const copiarLinkDoGrupo = () => {
-    const url = `${window.location.origin}?id=${docId}`;
-    navigator.clipboard.writeText(url);
-    alert("Link do grupo copiado com sucesso! Mande no WhatsApp da equipe.");
+    navigator.clipboard.writeText(`${window.location.origin}?id=${docId}`);
+    alert("Link do grupo copiado com sucesso!");
   };
 
   const handleChange = (e) => {
@@ -279,89 +278,77 @@ export default function GCLabPro() {
   const addAluno = () => { if (tempAluno && formData.alunos.length < 6) { setFormData({ ...formData, alunos: [...formData.alunos, tempAluno] }); setTempAluno(""); } };
   const removeAluno = (index) => { setFormData({ ...formData, alunos: formData.alunos.filter((_, i) => i !== index) }); };
 
-  const inputStyle = "w-full p-3 border-4 border-black bg-white focus:bg-yellow-100 outline-none shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-all font-bold text-black text-sm";
-  const btnBrutal = "px-6 py-3 border-4 border-black font-black uppercase shadow-[4px_4px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all flex items-center gap-2 text-xs md:text-sm";
-
   const projetosOrfaos = projetosRemotos.filter(p => !p.atividadeId || p.atividadeId === "");
 
+  // =========================================================================
+  // DASHBOARD DO PROFESSOR (BRUTALIST RESTAURADO)
+  // =========================================================================
   if (showAdmin) {
     return (
-      <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-blue-200">
+      <div className="min-h-screen bg-pink-500 p-4 md:p-8 font-sans">
         
-        {/* Navbar SaaS */}
-        <nav className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-20 shadow-sm">
+        {/* Navbar Admin */}
+        <div className="max-w-7xl mx-auto bg-yellow-400 border-4 border-black p-4 mb-8 shadow-[8px_8px_0px_black] flex justify-between items-center">
            <div className="flex items-center gap-4">
-              <div className="bg-gradient-to-br from-blue-700 to-indigo-900 text-white p-2.5 rounded-xl shadow-inner">
-                <Rocket size={22}/>
-              </div>
+              <Rocket size={32} className="text-black" />
               <div>
-                <h1 className="text-xl font-bold text-slate-900 leading-tight">Painel Executivo GC</h1>
-                <p className="text-xs font-medium text-slate-500">NITE Uniara • Gestão Acadêmica</p>
+                <h1 className="text-2xl font-black uppercase text-black leading-none">Painel Docente GC</h1>
+                <p className="text-xs font-bold text-black border-t-2 border-black mt-1 pt-1">Prof. Gerson Braz • Sist. de Informação</p>
               </div>
            </div>
-           <button onClick={() => setShowAdmin(false)} className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-red-600 transition-colors bg-slate-100 hover:bg-red-50 px-4 py-2 rounded-lg">
-              <LogOut size={16}/> Sair
+           <button onClick={() => setShowAdmin(false)} className={`${btnBrutal} bg-white hover:bg-red-400 hover:text-white`}>
+              Voltar ao Início
            </button>
-        </nav>
+        </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="max-w-7xl mx-auto">
           {!atividadeSelecionada ? (
-            <div className="space-y-10">
-              
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="space-y-8">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
-                <div className="lg:col-span-4">
-                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 sticky top-28">
-                    <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-                      <div className="bg-blue-50 text-blue-600 p-2 rounded-lg"><FolderPlus size={20} /></div>
-                      <h3 className="text-lg font-bold text-slate-800">Nova Turma / Atividade</h3>
-                    </div>
-                    
-                    <form onSubmit={criarNovaAtividade} className="space-y-5">
+                {/* Coluna Esquerda: Nova Atividade */}
+                <div className="lg:col-span-1">
+                  <div className="bg-white p-6 border-4 border-black shadow-[8px_8px_0px_black]">
+                    <h3 className="text-xl font-black uppercase mb-4 border-b-4 border-black pb-2 flex items-center gap-2">
+                      <FolderPlus size={24} /> Nova Turma
+                    </h3>
+                    <form onSubmit={criarNovaAtividade} className="space-y-4">
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Nome da Avaliação</label>
-                        <input type="text" value={novaAtivNome} onChange={(e) => setNovaAtivNome(e.target.value)} placeholder="Ex: Projeto Integrador I" className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block p-2.5 transition-all outline-none" required />
+                        <label className="block text-xs font-black uppercase mb-1">Nome da Avaliação</label>
+                        <input type="text" value={novaAtivNome} onChange={(e) => setNovaAtivNome(e.target.value)} placeholder="Ex: Projeto Integrador I" className={inputStyle} required />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Turma / Curso</label>
-                        <input type="text" value={novaAtivTurma} onChange={(e) => setNovaAtivTurma(e.target.value)} placeholder="Ex: ADM 7ª Semestre" className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block p-2.5 transition-all outline-none" required />
+                        <label className="block text-xs font-black uppercase mb-1">Turma</label>
+                        <input type="text" value={novaAtivTurma} onChange={(e) => setNovaAtivTurma(e.target.value)} placeholder="Ex: SI 7º Semestre" className={inputStyle} required />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Nota Máxima da Rodada</label>
-                        <input type="number" value={novaAtivNotaMax} onChange={(e) => setNovaAtivNotaMax(e.target.value)} className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block p-2.5 transition-all outline-none" required />
+                        <label className="block text-xs font-black uppercase mb-1">Nota Máxima</label>
+                        <input type="number" value={novaAtivNotaMax} onChange={(e) => setNovaAtivNotaMax(e.target.value)} className={inputStyle} required />
                       </div>
-                      <button type="submit" className="w-full text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-3 text-center transition-all shadow-sm">
-                        Cadastrar Nova Turma
+                      <button type="submit" className={`${btnBrutal} bg-lime-400 w-full mt-4`}>
+                        Criar Turma
                       </button>
                     </form>
                   </div>
                 </div>
 
-                <div className="lg:col-span-8 space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xl font-bold text-slate-800">Turmas Ativas</h3>
-                    <span className="bg-slate-100 text-slate-600 text-xs font-semibold px-2.5 py-1 rounded-full">{atividades.length} totais</span>
-                  </div>
+                {/* Coluna Direita: Atividades */}
+                <div className="lg:col-span-2 space-y-4">
+                  <h3 className="text-2xl font-black uppercase bg-black text-white p-3 inline-block shadow-[4px_4px_0px_white]">Turmas Ativas</h3>
+                  {atividades.length === 0 && <p className="text-sm font-bold bg-white p-4 border-4 border-black">Nenhuma turma configurada.</p>}
                   
-                  {atividades.length === 0 && <p className="text-sm font-medium text-slate-500 bg-white p-8 rounded-2xl border border-dashed border-slate-300 text-center">Nenhuma turma configurada no sistema.</p>}
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {atividades.map(a => (
-                      <div key={a.id} className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 p-6 flex flex-col justify-between group">
+                      <div key={a.id} className="bg-purple-200 border-4 border-black p-5 shadow-[6px_6px_0px_black] flex flex-col justify-between">
                         <div>
-                          <div className="flex justify-between items-start mb-3">
-                            <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-full">{a.turma}</span>
-                            <button onClick={() => excluirAtividadeCompleta(a.id)} className="text-slate-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={18} /></button>
-                          </div>
-                          <h4 className="text-lg font-bold text-slate-900 leading-tight">{a.nome}</h4>
-                          <div className="mt-3 flex items-center gap-2">
-                             <span className="text-xs text-slate-500 font-medium">Cód. Alunos:</span>
-                             <span className="text-xs font-mono text-slate-700 bg-slate-100 px-2 py-1 rounded-md border border-slate-200 select-all">{a.id}</span>
-                          </div>
+                          <span className="bg-white border-2 border-black text-xs font-black uppercase px-2 py-1">{a.turma}</span>
+                          <h4 className="text-xl font-black uppercase mt-3">{a.nome}</h4>
+                          <p className="text-xs font-bold bg-white border-2 border-black p-1 mt-2 inline-block">Cód: {a.id}</p>
                         </div>
-                        <div className="mt-6 pt-4 border-t border-slate-100">
-                          <button onClick={() => selecionarAtividadeDashboard(a)} className="w-full text-blue-700 bg-blue-50 hover:bg-blue-100 font-semibold rounded-lg text-sm px-4 py-2.5 text-center transition-colors flex items-center justify-center gap-2">
-                            Acessar Dashboard
+                        <div className="mt-6 flex justify-between items-center border-t-4 border-black pt-4">
+                          <button onClick={() => excluirAtividadeCompleta(a.id)} className="bg-red-500 text-white p-2 border-2 border-black hover:scale-105"><Trash2 size={20} /></button>
+                          <button onClick={() => selecionarAtividadeDashboard(a)} className={`${btnBrutal} bg-cyan-300 py-2`}>
+                            Ver Dashboard
                           </button>
                         </div>
                       </div>
@@ -370,165 +357,101 @@ export default function GCLabPro() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl shadow-sm border border-orange-200 overflow-hidden">
-                <div className="bg-orange-50 border-b border-orange-100 p-6 flex items-center gap-3">
-                   <div className="bg-orange-100 text-orange-600 p-2 rounded-lg"><History size={20}/></div>
-                   <div>
-                     <h3 className="text-lg font-bold text-orange-900">Projetos Antigos / Sem Turma</h3>
-                     <p className="text-sm font-medium text-orange-700 mt-1">Realoque os grupos antigos para as turmas criadas acima.</p>
-                   </div>
-                </div>
+              {/* Seção Projetos Antigos (Órfãos) */}
+              <div className="bg-orange-400 border-4 border-black p-6 shadow-[8px_8px_0px_black]">
+                <h3 className="text-xl font-black uppercase text-black mb-2 flex items-center gap-2"><History size={24}/> Projetos Não Vinculados</h3>
+                <p className="text-xs font-bold mb-6 bg-white p-2 border-2 border-black inline-block">Vincule os grupos antigos às turmas criadas.</p>
                 
-                <div className="p-6">
-                  {projetosOrfaos.length === 0 ? (
-                    <p className="text-sm text-slate-500 font-medium text-center py-4">Sistema limpo. Nenhum projeto sem vinculação.</p>
-                  ) : (
-                    <div className="space-y-4">
-                      {projetosOrfaos.map(p => (
-                        <div key={p.id} className="bg-slate-50 rounded-xl border border-slate-200 p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-orange-300 transition-colors">
-                          <div>
-                            <p className="text-base font-bold text-slate-900">{p.nomeGrupo || "Sem Nome"} <span className="text-sm font-normal text-slate-500 ml-1">({p.empresa || "Sem Empresa"})</span></p>
-                            <p className="text-xs text-slate-500 font-mono mt-1">ID: {p.id}</p>
+                {projetosOrfaos.length === 0 ? (
+                  <p className="text-sm font-black bg-white p-3 border-4 border-black inline-block">Nenhum projeto pendente.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {projetosOrfaos.map(p => (
+                      <div key={p.id} className="bg-white border-4 border-black p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                          <p className="text-lg font-black uppercase">{p.nomeGrupo || "Sem Nome"} <span className="text-xs font-bold text-gray-500">({p.empresa})</span></p>
+                          <p className="text-xs font-bold text-gray-400">ID: {p.id}</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs font-black uppercase">Turma:</label>
+                            <select onChange={(e) => { if(e.target.value) vincularAtividadeProjetoAntigo(p.id, e.target.value); }} className={inputStyle} style={{padding: '5px'}} defaultValue="">
+                              <option value="" disabled>Selecionar</option>
+                              {atividades.map(a => (<option key={a.id} value={a.id}>{a.turma}</option>))}
+                            </select>
                           </div>
-
-                          <div className="flex flex-wrap items-center gap-4">
-                            <div className="flex items-center gap-2">
-                              <label className="text-xs font-semibold text-slate-600">Vincular a:</label>
-                              <select 
-                                onChange={(e) => { if(e.target.value) vincularAtividadeProjetoAntigo(p.id, e.target.value); }}
-                                className="bg-white border border-slate-300 text-slate-900 text-xs rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2 outline-none"
-                                defaultValue=""
-                              >
-                                <option value="" disabled>Selecione a Turma</option>
-                                {atividades.map(a => (<option key={a.id} value={a.id}>{a.nome} ({a.turma})</option>))}
-                              </select>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <button onClick={() => excluirProjetoDoDashboard(p.id)} className="text-slate-400 hover:text-red-500 p-2 transition-colors"><Trash2 size={18}/></button>
-                              <button onClick={() => { setFormData(p); setDocId(p.id); setFeedbackConselho(p.feedbackIA || ""); setShowAdmin(false); setStep(5); }} className="text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 font-medium rounded-lg text-xs px-3 py-2 transition-colors flex items-center gap-1">
-                                <Eye size={14}/> Ver
-                              </button>
-                            </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => excluirProjetoDoDashboard(p.id)} className="bg-red-500 text-white p-2 border-2 border-black hover:scale-105"><Trash2 size={16}/></button>
+                            <button onClick={() => { setFormData(p); setDocId(p.id); setFeedbackConselho(p.feedbackIA || ""); setShowAdmin(false); setStep(5); }} className={`${btnBrutal} bg-black text-white py-1 px-3`}>
+                              Abrir
+                            </button>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ) : (
+            /* VISÃO B: DASHBOARD DA TURMA */
             <div className="space-y-6">
               
-              <button onClick={() => setAtividadeSelecionada(null)} className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-blue-600 transition-colors">
-                <ArrowLeft size={16} /> Voltar ao menu principal
+              <button onClick={() => setAtividadeSelecionada(null)} className={`${btnBrutal} bg-white inline-flex`}>
+                <ArrowLeft size={16} /> Voltar
               </button>
 
-              <div className="bg-gradient-to-r from-blue-900 to-indigo-900 rounded-3xl p-8 text-white shadow-lg relative overflow-hidden">
-                <div className="absolute top-0 right-0 opacity-10 transform translate-x-1/4 -translate-y-1/4">
-                  <Rocket size={200} />
-                </div>
-                <div className="relative z-10">
-                  <span className="bg-white/20 text-blue-50 backdrop-blur-sm text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider">{atividadeSelecionada.turma}</span>
-                  <h2 className="text-3xl font-bold mt-4 mb-2">{atividadeSelecionada.nome}</h2>
-                  <div className="flex items-center gap-4 mt-6">
-                    <div className="bg-black/20 rounded-lg p-3 backdrop-blur-md">
-                       <p className="text-blue-200 text-xs font-medium mb-1">Nota Máxima</p>
-                       <p className="text-2xl font-bold">{atividadeSelecionada.notaMaxima} pts</p>
-                    </div>
-                    <div className="bg-black/20 rounded-lg p-3 backdrop-blur-md">
-                       <p className="text-blue-200 text-xs font-medium mb-1">Grupos Vinculados</p>
-                       <p className="text-2xl font-bold">{projetosFiltrados.length}</p>
-                    </div>
-                  </div>
+              <div className="bg-purple-700 text-white p-8 border-4 border-black shadow-[8px_8px_0px_black]">
+                <span className="bg-white text-black font-black uppercase px-3 py-1 border-2 border-black text-xs">{atividadeSelecionada.turma}</span>
+                <h2 className="text-4xl font-black uppercase mt-4">{atividadeSelecionada.nome}</h2>
+                <div className="flex gap-4 mt-6">
+                  <div className="bg-black p-3 border-2 border-white"><p className="text-xs font-bold text-gray-400">Nota Máx</p><p className="text-xl font-black">{atividadeSelecionada.notaMaxima}</p></div>
+                  <div className="bg-black p-3 border-2 border-white"><p className="text-xs font-bold text-gray-400">Grupos</p><p className="text-xl font-black">{projetosFiltrados.length}</p></div>
                 </div>
               </div>
 
-              <div className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-                <div className="px-6 py-5 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center">
-                   <h3 className="text-lg font-bold text-slate-800">Avaliação de Grupos</h3>
-                </div>
+              <div className="bg-white border-4 border-black shadow-[8px_8px_0px_black]">
+                <div className="bg-yellow-400 p-4 border-b-4 border-black"><h3 className="text-xl font-black uppercase">Mapeamento de Grupos</h3></div>
                 
-                <div className="p-6">
-                  {projetosFiltrados.length === 0 && (
-                     <div className="text-center py-10">
-                       <div className="bg-slate-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"><Users className="text-slate-400" size={32}/></div>
-                       <p className="text-slate-500 font-medium">Nenhum grupo vinculado a esta turma ainda.</p>
-                     </div>
-                  )}
+                <div className="p-6 space-y-4">
+                  {projetosFiltrados.length === 0 && <p className="font-bold text-center py-6">Nenhum grupo vinculado ainda.</p>}
                   
-                  <div className="space-y-4">
-                    {projetosFiltrados.map(p => {
-                      const isConcluido = p.etapaConcluida === 5;
-                      const isAvaliado = p.notaFinal !== undefined && p.notaFinal !== "";
-                      const temParecerIA = p.avaliacaoProfessorIA ? true : false;
-
-                      return (
-                        <div key={p.id} className="bg-white border border-slate-200 rounded-xl p-5 hover:border-blue-300 hover:shadow-md transition-all flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 group">
+                  {projetosFiltrados.map(p => {
+                    const isConcluido = p.etapaConcluida === 5;
+                    const isAvaliado = p.notaFinal !== undefined && p.notaFinal !== "";
+                    return (
+                      <div key={p.id} className="bg-gray-50 border-4 border-black p-5 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 hover:bg-yellow-50 transition-colors">
+                        <div className="flex-1">
+                          <h4 className="text-xl font-black uppercase">{p.nomeGrupo || "Sem Nome"}</h4>
+                          <p className="text-xs font-bold uppercase bg-white border-2 border-black px-2 py-1 inline-block mt-1 mb-3">{p.empresa}</p>
+                          <p className="text-xs font-bold text-gray-600 mb-3">Integrantes: {p.alunos?.join(", ")}</p>
                           
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-3 mb-1.5">
-                              <h4 className="text-base font-bold text-slate-900 truncate">{p.nomeGrupo || "Grupo Sem Nome"}</h4>
-                              <span className="bg-slate-100 text-slate-600 text-xs font-medium px-2 py-0.5 rounded border border-slate-200">{p.empresa}</span>
-                            </div>
-                            
-                            <div className="flex items-center gap-3 text-xs text-slate-500 mb-3">
-                              <span className="font-medium truncate max-w-md">Integrantes: {p.alunos?.join(", ") || "Não informados"}</span>
-                              <span>•</span>
-                              <span className="font-mono bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded text-slate-400 select-all" title="Token de Acesso do Grupo">ID: {p.id}</span>
-                            </div>
-                            
-                            <div className="flex flex-wrap gap-2">
-                              {isConcluido ? (
-                                <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 text-[10px] font-bold px-2 py-1 rounded-md"><CheckCircle size={12}/> CONCLUÍDO</span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold px-2 py-1 rounded-md"><Clock size={12}/> ETAPA {p.etapaConcluida || 1}</span>
-                              )}
-                              
-                              <span className={`inline-flex items-center gap-1 border text-[10px] font-bold px-2 py-1 rounded-md ${temParecerIA ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
-                                {temParecerIA ? '🤖 PARECER IA PRONTO' : '⏳ SEM PARECER IA'}
-                              </span>
-                              
-                              <span className={`inline-flex items-center gap-1 border text-[10px] font-bold px-2 py-1 rounded-md ${isAvaliado ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
-                                {isAvaliado ? `✅ AVALIADO` : '❌ PENDENTE DE NOTA'}
-                              </span>
-                            </div>
+                          <div className="flex flex-wrap gap-2">
+                            <span className={`text-[10px] font-black px-2 py-1 border-2 border-black uppercase ${isConcluido ? 'bg-lime-400' : 'bg-orange-400'}`}>
+                              {isConcluido ? 'CONCLUÍDO' : `ETAPA ${p.etapaConcluida}`}
+                            </span>
+                            <span className={`text-[10px] font-black px-2 py-1 border-2 border-black uppercase ${isAvaliado ? 'bg-cyan-400' : 'bg-white'}`}>
+                              {isAvaliado ? `AVALIADO` : 'SEM NOTA'}
+                            </span>
                           </div>
-
-                          <div className="flex items-center gap-4 w-full lg:w-auto bg-slate-50 lg:bg-transparent p-4 lg:p-0 rounded-lg border border-slate-200 lg:border-none">
-                            <div className="flex items-center gap-2">
-                              <div className="bg-white border border-slate-300 rounded-lg flex items-center overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 shadow-sm">
-                                <span className="pl-3 pr-2 text-slate-400"><Award size={16}/></span>
-                                <input 
-                                  type="number" 
-                                  step="0.1"
-                                  max={atividadeSelecionada.notaMaxima}
-                                  defaultValue={p.notaFinal || ""} 
-                                  onBlur={(e) => salvarNotaProfessor(p.id, e.target.value)}
-                                  placeholder="Nota"
-                                  className="w-16 py-2.5 bg-transparent font-bold text-slate-900 text-sm outline-none"
-                                />
-                              </div>
-                              <span className="text-xs font-semibold text-slate-400">/ {atividadeSelecionada.notaMaxima}</span>
-                            </div>
-
-                            <div className="w-px h-8 bg-slate-200 hidden lg:block mx-2"></div>
-
-                            <div className="flex items-center gap-2 ml-auto lg:ml-0">
-                              <button onClick={() => excluirProjetoDoDashboard(p.id)} className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Excluir Grupo">
-                                <Trash2 size={18}/>
-                              </button>
-                              <button onClick={() => { setFormData(p); setDocId(p.id); setFeedbackConselho(p.feedbackIA || ""); setShowAdmin(false); setStep(5); }} className="text-white bg-slate-800 hover:bg-slate-900 font-medium rounded-lg text-sm px-4 py-2 transition-colors flex items-center gap-2 shadow-sm">
-                                <Eye size={16}/> Abrir
-                              </button>
-                            </div>
-                          </div>
-
                         </div>
-                      );
-                    })}
-                  </div>
+
+                        <div className="flex items-center gap-4 w-full lg:w-auto border-t-4 border-black pt-4 lg:border-t-0 lg:pt-0">
+                          <div className="flex items-center gap-2 bg-white p-2 border-4 border-black">
+                            <span className="font-black text-xs uppercase">Nota:</span>
+                            <input type="number" step="0.1" defaultValue={p.notaFinal || ""} onBlur={(e) => salvarNotaProfessor(p.id, e.target.value)} className="w-16 p-1 border-2 border-black font-black text-center outline-none bg-yellow-100" />
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => excluirProjetoDoDashboard(p.id)} className="bg-red-500 text-white p-3 border-4 border-black hover:bg-red-600"><Trash2 size={20}/></button>
+                            <button onClick={() => { setFormData(p); setDocId(p.id); setFeedbackConselho(p.feedbackIA || ""); setShowAdmin(false); setStep(5); }} className={`${btnBrutal} bg-black text-white px-4`}>
+                              Abrir
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -538,10 +461,14 @@ export default function GCLabPro() {
     );
   }
 
+  // =========================================================================
+  // INTERFACE GAMIFICADA (ALUNO E RELATÓRIO DO PROFESSOR)
+  // =========================================================================
   return (
     <div className="min-h-screen bg-pink-500 p-4 md:p-10 font-sans print:bg-white print:p-0">
       <div className="max-w-5xl mx-auto bg-white border-4 border-black shadow-[12px_12px_0px_rgba(0,0,0,1)] print:border-none print:shadow-none print:max-w-none print:m-0">
         
+        {/* Header Comum */}
         <div className="bg-yellow-400 p-6 border-b-4 border-black flex flex-col md:flex-row justify-between items-center gap-6 print:hidden">
           <div className="flex items-center gap-4">
              <img src={uniaraLogo} alt="Uniara" className="h-12 border-4 border-black bg-white" />
@@ -552,11 +479,11 @@ export default function GCLabPro() {
           </div>
           <div className="flex flex-wrap justify-center gap-3 items-center">
             {docId && (
-              <button onClick={copiarLinkDoGrupo} className="bg-white text-black p-2 border-2 border-black text-xs uppercase font-black flex items-center gap-2 shadow-[2px_2px_0px_black] hover:bg-cyan-200 transition-all">
+              <button onClick={copiarLinkDoGrupo} className="bg-white text-black p-2 border-2 border-black text-xs uppercase font-black flex items-center gap-2 shadow-[2px_2px_0px_black] hover:bg-cyan-200">
                 <Link size={16} /> Link do Grupo
               </button>
             )}
-            <button onClick={carregarAtividadesDoBanco} className="p-2 border-2 border-black text-xs uppercase font-black flex items-center gap-2 shadow-[2px_2px_0px_black] bg-black text-white hover:bg-gray-800 transition-colors">
+            <button onClick={carregarAtividadesDoBanco} className="p-2 border-2 border-black text-xs uppercase font-black flex items-center gap-2 shadow-[2px_2px_0px_black] bg-black text-white hover:bg-gray-800">
               <Users size={14} /> Professor
             </button>
             <div className="font-black text-lg md:text-xl text-black bg-white px-3 py-2 border-4 border-black shadow-[4px_4px_0px_black]">ETAPA {step}/5</div>
@@ -569,29 +496,25 @@ export default function GCLabPro() {
           {step === 1 && !formData.atividadeId && !docId && (
             <div className="max-w-md mx-auto my-6 space-y-6 print:hidden">
               <div className="border-4 border-black p-6 bg-yellow-100 shadow-[6px_6px_0px_black] space-y-4">
-                <h3 className="text-xl font-black uppercase text-center">Nova Rodada / Atividade</h3>
-                <p className="text-xs font-bold text-gray-700 leading-relaxed text-center">Selecione a atividade/turma correspondente na lista abaixo para iniciar o projeto da sua equipe.</p>
+                <h3 className="text-xl font-black uppercase text-center">Nova Rodada</h3>
+                <p className="text-xs font-bold text-center">Selecione a atividade correspondente para iniciar o projeto.</p>
                 <div className="space-y-2">
-                  <select id="codAtivInput" className="w-full p-3 border-4 border-black font-black text-center text-sm outline-none uppercase bg-white shadow-[3px_3px_0px_black]">
+                  <select id="codAtivInput" className={inputStyle}>
                     <option value="">-- ESCOLHA A SUA TURMA --</option>
-                    {atividades.map(a => (
-                      <option key={a.id} value={a.id}>{a.nome} ({a.turma})</option>
-                    ))}
+                    {atividades.map(a => (<option key={a.id} value={a.id}>{a.nome} ({a.turma})</option>))}
                   </select>
                   <button onClick={() => {
                     const val = document.getElementById('codAtivInput').value;
                     if(val) setFormData(prev => ({ ...prev, atividadeId: val }));
-                    else alert("Por favor, selecione uma atividade na lista.");
-                  }} className="w-full bg-black text-white font-black py-3 border-4 border-black uppercase text-xs tracking-wide shadow-[3px_3px_0px_rgba(0,0,0,1)] hover:bg-gray-800 transition-colors">Vincular e Iniciar</button>
+                  }} className={`${btnBrutal} w-full bg-black text-white`}>Vincular</button>
                 </div>
               </div>
 
               <div className="border-4 border-black p-5 bg-orange-100 shadow-[6px_6px_0px_black] space-y-3">
                 <h4 className="font-black uppercase text-sm text-center flex items-center justify-center gap-1"><History size={16}/> Resgatar Projeto</h4>
-                <p className="text-[11px] font-bold text-gray-600 text-center">Se o seu grupo já começou um projeto, digite o Token/ID do Grupo abaixo para carregá-lo.</p>
                 <div className="flex">
-                  <input type="text" id="inputCodigoAntigo" placeholder="Token / ID do Grupo..." className="p-2 border-4 border-black outline-none font-bold text-xs w-full bg-white" />
-                  <button onClick={() => carregarProjetoPeloId(document.getElementById('inputCodigoAntigo').value)} className="bg-orange-500 text-white px-4 font-black uppercase text-xs border-y-4 border-r-4 border-black hover:bg-orange-600 transition-colors">Resgatar</button>
+                  <input type="text" id="inputCodigoAntigo" placeholder="Token / ID..." className="p-2 border-4 border-black outline-none font-bold text-xs w-full bg-white" />
+                  <button onClick={() => carregarProjetoPeloId(document.getElementById('inputCodigoAntigo').value)} className="bg-orange-500 text-white px-4 font-black uppercase text-xs border-y-4 border-r-4 border-black">Resgatar</button>
                 </div>
               </div>
             </div>
@@ -599,46 +522,27 @@ export default function GCLabPro() {
 
           {step === 1 && (formData.atividadeId || docId) && (
             <div className="space-y-6 print:hidden">
-              {!docId && (
-                <div className="border-4 border-black p-4 bg-purple-50 shadow-[4px_4px_0px_black] flex flex-col md:flex-row justify-between items-center gap-4">
-                  <div>
-                    <h3 className="font-black uppercase text-sm">Entrando na atividade</h3>
-                    <p className="text-[11px] font-bold text-purple-900">Se você já criou o grupo nesta atividade e quer apenas continuar, cole o ID do Grupo ao lado.</p>
-                  </div>
-                  <div className="flex w-full md:w-auto">
-                    <input type="text" id="inputCodigo" placeholder="ID do Grupo..." className="p-2 border-4 border-black outline-none font-bold text-xs w-full bg-white" />
-                    <button onClick={() => carregarProjetoPeloId(document.getElementById('inputCodigo').value)} className="bg-black text-white px-4 font-black uppercase text-xs border-y-4 border-r-4 border-black hover:bg-gray-800">Carregar</button>
-                  </div>
-                </div>
-              )}
-              
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div><label className="font-black uppercase text-[11px]">Nome Fantasia do Grupo</label><input type="text" name="nomeGrupo" value={formData.nomeGrupo} onChange={handleChange} className={inputStyle} /></div>
+                <div><label className="font-black uppercase text-[11px]">Nome do Grupo</label><input type="text" name="nomeGrupo" value={formData.nomeGrupo} onChange={handleChange} className={inputStyle} /></div>
                 <div><label className="font-black uppercase text-[11px]">Empresa Alvo</label><input type="text" name="empresa" value={formData.empresa} onChange={handleChange} className={inputStyle} /></div>
-                <div><label className="font-black uppercase text-[11px]">Setor / Área de Negócio</label><input type="text" name="area" value={formData.area} onChange={handleChange} className={inputStyle} /></div>
+                <div><label className="font-black uppercase text-[11px]">Área de Negócio</label><input type="text" name="area" value={formData.area} onChange={handleChange} className={inputStyle} /></div>
               </div>
               
-              <div className="border-4 border-black p-4 bg-white">
-                <label className="font-black uppercase block mb-2 italic">Consultores da Equipe (Máx 6)</label>
+              <div className="border-4 border-black p-4 bg-white shadow-[4px_4px_0px_black]">
+                <label className="font-black uppercase block mb-2 italic">Consultores da Equipe</label>
                 <div className="flex gap-2 mb-4">
-                  <input type="text" value={tempAluno} onChange={(e) => setTempAluno(e.target.value)} placeholder="Nome Completo do Aluno..." className={inputStyle} />
-                  <button onClick={addAluno} className="bg-lime-400 hover:bg-lime-500 transition-colors px-6 border-4 border-black font-black">+</button>
+                  <input type="text" value={tempAluno} onChange={(e) => setTempAluno(e.target.value)} placeholder="Nome do Aluno..." className={inputStyle} />
+                  <button onClick={addAluno} className={`${btnBrutal} bg-lime-400 px-6`}>+</button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {formData.alunos.map((aluno, i) => (
                     <div key={i} className="flex justify-between items-center bg-gray-100 border-2 border-black p-2 font-bold text-xs uppercase">
-                      {aluno}
-                      <button onClick={() => removeAluno(i)} className="text-red-600 hover:scale-110 transition-transform"><Trash2 size={16}/></button>
+                      {aluno} <button onClick={() => removeAluno(i)} className="text-red-600"><Trash2 size={16}/></button>
                     </div>
                   ))}
                 </div>
               </div>
-
-              {docId && (
-                <div className="p-3 bg-gray-900 text-lime-400 font-mono text-[10px] uppercase border-4 border-black select-all flex items-center justify-between">
-                  <span>Token Seguro de Acesso do seu Grupo (Guarde com a Equipe): {docId}</span>
-                </div>
-              )}
+              {docId && <div className="p-3 bg-black text-lime-400 font-mono text-xs uppercase border-4 border-black select-all">Token do Grupo: {docId}</div>}
             </div>
           )}
 
@@ -649,7 +553,7 @@ export default function GCLabPro() {
                     <h3 className="font-black uppercase mb-4 text-xl underline italic">{pilar}</h3>
                     <div className="flex flex-wrap gap-2 mb-4">
                       {presets[pilar].map(tag => (
-                        <button key={tag} onClick={() => handleTagToggle(pilar, tag)} className={`p-2 border-2 border-black text-[10px] font-black hover:bg-gray-100 transition-colors ${formData[`diag${pilar.charAt(0).toUpperCase() + pilar.slice(1)}Tags`].includes(tag) ? 'bg-black text-white hover:bg-black' : 'bg-white'}`}>{tag}</button>
+                        <button key={tag} onClick={() => handleTagToggle(pilar, tag)} className={`p-2 border-2 border-black text-[10px] font-black ${formData[`diag${pilar.charAt(0).toUpperCase() + pilar.slice(1)}Tags`].includes(tag) ? 'bg-black text-white' : 'bg-white'}`}>{tag}</button>
                       ))}
                     </div>
                   </div>
@@ -659,9 +563,9 @@ export default function GCLabPro() {
 
           {step === 3 && (
             <div className="space-y-6 print:hidden">
-              <div className="border-4 border-black p-6 bg-red-100">
+              <div className="border-4 border-black p-6 bg-red-100 shadow-[6px_6px_0px_black]">
                 <label className="font-black uppercase block mb-2 text-xl">Mapeamento do Problema Central</label>
-                <textarea name="gapPrincipal" value={formData.gapPrincipal} onChange={handleChange} className={inputStyle} rows="4" placeholder="Descreva com foco em negócios qual a principal falha na retenção ou transmissão de conhecimento na organização..."></textarea>
+                <textarea name="gapPrincipal" value={formData.gapPrincipal} onChange={handleChange} className={inputStyle} rows="4"></textarea>
               </div>
             </div>
           )}
@@ -669,71 +573,26 @@ export default function GCLabPro() {
           {step === 4 && (
             <div className="space-y-8 print:hidden">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-purple-100 p-4 border-4 border-black"><h4 className="font-black mb-2 uppercase">Fase 1: Sensibilização</h4><input type="text" name="f1AcaoEngajamento" value={formData.f1AcaoEngajamento} onChange={handleChange} className={inputStyle} /></div>
-                <div className="bg-orange-100 p-4 border-4 border-black"><h4 className="font-black mb-2 uppercase">Fase 2: Tecnologia</h4><input type="text" name="f2Ferramenta" value={formData.f2Ferramenta} onChange={handleChange} className={inputStyle} /></div>
-                <div className="bg-pink-100 p-4 border-4 border-black"><h4 className="font-black mb-2 uppercase">Fase 3: Piloto</h4><input type="text" name="f3SetorPiloto" value={formData.f3SetorPiloto} onChange={handleChange} className={inputStyle} /></div>
-                <div className="bg-lime-100 p-4 border-4 border-black"><h4 className="font-black mb-2 uppercase">Fase 4: Sustentação</h4><input type="text" name="f4NovaRotina" value={formData.f4NovaRotina} onChange={handleChange} className={inputStyle} /></div>
+                <div className="bg-purple-100 p-4 border-4 border-black shadow-[4px_4px_0px_black]"><h4 className="font-black mb-2 uppercase">Fase 1: Sensibilização</h4><input type="text" name="f1AcaoEngajamento" value={formData.f1AcaoEngajamento} onChange={handleChange} className={inputStyle} /></div>
+                <div className="bg-orange-100 p-4 border-4 border-black shadow-[4px_4px_0px_black]"><h4 className="font-black mb-2 uppercase">Fase 2: Tecnologia</h4><input type="text" name="f2Ferramenta" value={formData.f2Ferramenta} onChange={handleChange} className={inputStyle} /></div>
+                <div className="bg-pink-100 p-4 border-4 border-black shadow-[4px_4px_0px_black]"><h4 className="font-black mb-2 uppercase">Fase 3: Piloto</h4><input type="text" name="f3SetorPiloto" value={formData.f3SetorPiloto} onChange={handleChange} className={inputStyle} /></div>
+                <div className="bg-lime-100 p-4 border-4 border-black shadow-[4px_4px_0px_black]"><h4 className="font-black mb-2 uppercase">Fase 4: Sustentação</h4><input type="text" name="f4NovaRotina" value={formData.f4NovaRotina} onChange={handleChange} className={inputStyle} /></div>
               </div>
 
               <div className="border-8 border-black p-6 bg-black text-white shadow-[8px_8px_0px_#ff00ff]">
-                <div className="flex items-center gap-3 mb-4">
-                  <ShieldCheck size={32} className="text-lime-400" />
-                  <h3 className="text-2xl font-black uppercase italic">Validação do Conselho Executivo</h3>
-                </div>
+                <div className="flex items-center gap-3 mb-4"><ShieldCheck size={32} className="text-lime-400" /><h3 className="text-2xl font-black uppercase italic">Conselho Executivo (IA)</h3></div>
                 {feedbackConselho ? (
-                  <div className="bg-white text-black p-4 border-4 border-lime-400 font-mono text-sm mb-4 leading-relaxed">
-                    <MessageSquareQuote className="mb-2 text-purple-600" size={24} />
-                    {feedbackConselho.split('\n').map((line, i) => <p key={i} className="mb-2">{line}</p>)}
-                  </div>
-                ) : (
-                  <p className="text-xs font-bold mb-4 text-gray-400 italic">O conselho aguarda o envio do plano para emitir o parecer técnico.</p>
-                )}
-                <button onClick={validarComConselho} disabled={isIAWait} className={`${btnBrutal} bg-lime-400 text-black w-full justify-center disabled:opacity-50 hover:bg-lime-500`}>
-                  {isIAWait ? "PROCESSANDO PARECER..." : "SUBMETER AO CONSELHO (IA)"}
-                </button>
+                  <div className="bg-white text-black p-4 border-4 border-lime-400 font-mono text-sm mb-4 leading-relaxed whitespace-pre-wrap">{feedbackConselho}</div>
+                ) : <p className="text-xs font-bold mb-4 text-gray-400 italic">O conselho aguarda submissão...</p>}
+                <button onClick={validarComConselho} disabled={isIAWait} className={`${btnBrutal} bg-lime-400 text-black w-full disabled:opacity-50`}>{isIAWait ? "PROCESSANDO..." : "SUBMETER AO CONSELHO"}</button>
               </div>
 
-              <div className="p-6 bg-white border-4 border-black">
-                 <div className="flex justify-between items-center mb-4">
-                   <h3 className="text-xl font-black uppercase flex items-center gap-2"><UploadCloud size={24} /> Evidências de Campo</h3>
-                   <span className="text-xs font-bold bg-gray-200 px-2 py-1 border-2 border-black">{formData.evidencias?.length || 0}/5 Anexos</span>
-                 </div>
-                 {(!formData.evidencias || formData.evidencias.length < 5) && (
-                   <label className="cursor-pointer bg-black text-white px-6 py-4 font-black uppercase flex justify-center items-center gap-2 border-4 border-black mb-4 hover:bg-gray-800 transition-colors">
-                     <UploadCloud size={20} /> Anexar Foto/Documento
-                     <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleFileUpload} />
-                   </label>
-                 )}
-                 {formData.evidencias && formData.evidencias.length > 0 && (
-                   <div className="space-y-2">
-                     {formData.evidencias.map((arq, idx) => (
-                       <div key={idx} className="bg-lime-400 p-3 border-4 border-black font-black uppercase flex justify-between items-center text-xs">
-                         <span className="truncate max-w-xs">✅ {arq.nome}</span>
-                         <div className="flex gap-2">
-                           <a href={arq.url} target="_blank" rel="noreferrer" className="bg-black text-white p-2 border-2 border-white hover:scale-105 transition-transform"><Eye size={16}/></a>
-                           <button onClick={() => removerEvidencia(idx)} className="bg-red-600 text-white p-2 border-2 border-white hover:scale-105 transition-transform"><Trash2 size={16}/></button>
-                         </div>
-                       </div>
-                     ))}
-                   </div>
-                 )}
-              </div>
-
-              <div className="p-6 bg-red-400 border-4 border-black space-y-4">
+              <div className="p-6 bg-red-400 border-4 border-black shadow-[6px_6px_0px_black] space-y-4">
                 <h3 className="text-xl font-black uppercase">Filtro de Realidade</h3>
                 <div className="space-y-4 bg-white p-4 border-4 border-black">
-                   <div className="space-y-2">
-                     <label className="flex items-center gap-3 font-black uppercase text-sm"><input type="checkbox" name="chkOrcamento" checked={formData.chkOrcamento} onChange={handleChange} className="w-6 h-6 border-4 border-black accent-black" /> 1. Recurso Disponível?</label>
-                     {formData.chkOrcamento && <textarea name="justOrcamento" value={formData.justOrcamento} onChange={handleChange} placeholder="Justifique a viabilidade financeira..." className={inputStyle} rows="2"></textarea>}
-                   </div>
-                   <div className="space-y-2">
-                     <label className="flex items-center gap-3 font-black uppercase text-sm"><input type="checkbox" name="chkTempo" checked={formData.chkTempo} onChange={handleChange} className="w-6 h-6 border-4 border-black accent-black" /> 2. Tempo na Rotina?</label>
-                     {formData.chkTempo && <textarea name="justTempo" value={formData.justTempo} onChange={handleChange} placeholder="Justifique o encaixe operacional na jornada..." className={inputStyle} rows="2"></textarea>}
-                   </div>
-                   <div className="space-y-2">
-                     <label className="flex items-center gap-3 font-black uppercase text-sm"><input type="checkbox" name="chkManutencao" checked={formData.chkManutencao} onChange={handleChange} className="w-6 h-6 border-4 border-black accent-black" /> 3. Resolve a Dor?</label>
-                     {formData.chkManutencao && <textarea name="justManutencao" value={formData.justManutencao} onChange={handleChange} placeholder="Justifique o impacto direto no problema central..." className={inputStyle} rows="2"></textarea>}
-                   </div>
+                   <div className="space-y-2"><label className="flex items-center gap-3 font-black uppercase text-sm"><input type="checkbox" name="chkOrcamento" checked={formData.chkOrcamento} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> 1. Recurso Disponível?</label>{formData.chkOrcamento && <textarea name="justOrcamento" value={formData.justOrcamento} onChange={handleChange} className={inputStyle} rows="2"></textarea>}</div>
+                   <div className="space-y-2"><label className="flex items-center gap-3 font-black uppercase text-sm"><input type="checkbox" name="chkTempo" checked={formData.chkTempo} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> 2. Tempo na Rotina?</label>{formData.chkTempo && <textarea name="justTempo" value={formData.justTempo} onChange={handleChange} className={inputStyle} rows="2"></textarea>}</div>
+                   <div className="space-y-2"><label className="flex items-center gap-3 font-black uppercase text-sm"><input type="checkbox" name="chkManutencao" checked={formData.chkManutencao} onChange={handleChange} className="w-6 h-6 border-4 border-black" /> 3. Resolve a Dor?</label>{formData.chkManutencao && <textarea name="justManutencao" value={formData.justManutencao} onChange={handleChange} className={inputStyle} rows="2"></textarea>}</div>
                 </div>
               </div>
             </div>
@@ -742,162 +601,115 @@ export default function GCLabPro() {
           {step === 5 && (
             <div>
               <div id="printArea" className="bg-white p-8 md:p-12 border border-gray-200 font-sans text-gray-800 mx-auto max-w-4xl shadow-md print:border-none print:shadow-none print:max-w-full">
-                
                 <div className="flex justify-between items-center border-b-2 border-blue-900 pb-6 mb-8">
                   <div>
-                    <h1 className="text-2xl font-bold text-blue-900 uppercase tracking-wider">Projeto Executivo Final</h1>
+                    <h1 className="text-2xl font-bold text-blue-900 uppercase tracking-wider">Projeto Executivo</h1>
                     <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-widest mt-1">Gestão do Conhecimento</h2>
                   </div>
                   <img src={uniaraLogo} alt="Uniara" className="h-12 opacity-90" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-6 mb-10 text-sm">
-                  <div>
-                    <p className="text-gray-400 uppercase text-[10px] font-bold tracking-widest mb-1">Empresa / Setor Foco</p>
-                    <p className="font-bold text-lg text-gray-900">{formData.empresa} <span className="font-normal text-gray-500 text-sm">({formData.area || "Geral"})</span></p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 uppercase text-[10px] font-bold tracking-widest mb-1">Consultores (Equipe)</p>
-                    <p className="font-medium text-gray-800">{formData.alunos.join(", ")}</p>
-                  </div>
+                  <div><p className="text-gray-400 uppercase text-[10px] font-bold mb-1">Empresa</p><p className="font-bold text-lg text-gray-900">{formData.empresa}</p></div>
+                  <div><p className="text-gray-400 uppercase text-[10px] font-bold mb-1">Equipe</p><p className="font-medium text-gray-800">{formData.alunos.join(", ")}</p></div>
                 </div>
 
-                {formData.notaFinal !== undefined && formData.notaFinal !== "" && (
-                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-sm text-sm font-bold text-blue-950 flex justify-between items-center">
-                    <span>Métrica de Desempenho / Avaliação do Consultor:</span>
-                    <span className="text-xl font-black bg-blue-900 text-white px-4 py-1 rounded-sm">NOTA: {formData.notaFinal}</span>
+                {formData.notaFinal && (
+                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 text-sm font-bold text-blue-950 flex justify-between items-center">
+                    <span>Métrica de Desempenho:</span><span className="text-xl font-black bg-blue-900 text-white px-4 py-1">NOTA: {formData.notaFinal}</span>
                   </div>
                 )}
 
-                <div className="mb-10">
-                  <h3 className="text-blue-900 font-bold uppercase text-xs tracking-widest border-b border-gray-300 pb-2 mb-4">1. Diagnóstico e Problema Central</h3>
-                  <p className="text-gray-800 text-base leading-relaxed bg-gray-50 p-5 border-l-4 border-blue-900 italic">"{formData.gapPrincipal}"</p>
+                <div className="mb-8">
+                  <h3 className="text-blue-900 font-bold uppercase text-xs border-b border-gray-300 pb-2 mb-4">1. Diagnóstico Central</h3>
+                  <p className="text-gray-800 bg-gray-50 p-4 border-l-4 border-blue-900 italic">"{formData.gapPrincipal}"</p>
                 </div>
 
-                <div className="mb-10">
-                  <h3 className="text-blue-900 font-bold uppercase text-xs tracking-widest border-b border-gray-300 pb-2 mb-4">2. Roadmap de Implantação</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-blue-50/50 p-4 border border-blue-100"><p className="text-[10px] font-bold text-blue-800 uppercase mb-2">Fase 1: Sensibilização</p><p className="text-xs text-gray-700">{formData.f1AcaoEngajamento}</p></div>
-                    <div className="bg-blue-50/50 p-4 border border-blue-100"><p className="text-[10px] font-bold text-blue-800 uppercase mb-2">Fase 2: Tecnologia</p><p className="text-xs text-gray-700">{formData.f2Ferramenta}</p></div>
-                    <div className="bg-blue-50/50 p-4 border border-blue-100"><p className="text-[10px] font-bold text-blue-800 uppercase mb-2">Fase 3: Piloto</p><p className="text-xs text-gray-700">{formData.f3SetorPiloto}</p></div>
-                    <div className="bg-blue-50/50 p-4 border border-blue-100"><p className="text-[10px] font-bold text-blue-800 uppercase mb-2">Fase 4: Sustentação</p><p className="text-xs text-gray-700">{formData.f4NovaRotina}</p></div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                  <div>
-                    <h3 className="text-blue-900 font-bold uppercase text-xs tracking-widest border-b border-gray-300 pb-2 mb-4">3. Defesa de Viabilidade</h3>
-                    <ul className="space-y-4 text-xs text-gray-700">
-                      <li><strong className="text-gray-900 block mb-1">Recursos e Orçamento:</strong> {formData.justOrcamento}</li>
-                      <li><strong className="text-gray-900 block mb-1">Tempo na Rotina:</strong> {formData.justTempo}</li>
-                      <li><strong className="text-gray-900 block mb-1">Resolução da Dor:</strong> {formData.justManutencao}</li>
-                    </ul>
-                  </div>
-                  <div>
-                    <h3 className="text-blue-900 font-bold uppercase text-xs tracking-widest border-b border-gray-300 pb-2 mb-4">4. Parecer do Conselho (IA)</h3>
-                    <div className="text-xs text-gray-700 space-y-2 whitespace-pre-wrap bg-gray-50 p-4 border border-gray-200 rounded-sm">{formData.feedbackIA}</div>
-                  </div>
+                <div className="mb-8">
+                  <h3 className="text-blue-900 font-bold uppercase text-xs border-b border-gray-300 pb-2 mb-4">2. Parecer do Conselho (IA)</h3>
+                  <div className="text-xs text-gray-700 whitespace-pre-wrap bg-gray-50 p-4 border border-gray-200">{formData.feedbackIA}</div>
                 </div>
                 
-                <div className="mb-8 mt-10 page-break-inside-avoid">
-                  <h3 className="text-blue-900 font-bold uppercase text-xs tracking-widest border-b border-gray-300 pb-2 mb-4">🎤 Roteiro de Pitch Sugerido (2 Minutos)</h3>
-                  <div className="bg-yellow-50 border border-yellow-200 p-5 text-sm text-gray-800 space-y-2">
-                    <p><strong className="text-blue-900">1. O Gancho (15s):</strong> "Somos a equipe {formData.nomeGrupo} focados na área de {formData.area} da {formData.empresa}."</p>
-                    <p><strong className="text-blue-900">2. A Dor (30s):</strong> "O gargalo central estratégico identificado foi: {formData.gapPrincipal}."</p>
-                    <p><strong className="text-blue-900">3. A Solução (45s):</strong> "Agiremos em ondas através de {formData.f1AcaoEngajamento} e a ferramenta {formData.f2Ferramenta}, homologando um piloto no setor {formData.f3SetorPiloto}."</p>
-                    <p><strong className="text-blue-900">4. Viabilidade (30s):</strong> "Garantimos o sucesso operacional porque {formData.justTempo} e {formData.justManutencao}."</p>
-                  </div>
-                </div>
-
-                <div className="mt-16 text-center text-[10px] text-gray-400 border-t border-gray-200 pt-6">
-                  <p className="uppercase tracking-widest">Sistema Analítico GC-LAB 4.0 — NITE UNIARA</p>
-                </div>
+                <div className="mt-16 text-center text-[10px] text-gray-400 border-t border-gray-200 pt-6">Sistema Analítico GC-LAB 4.0 — Prof. Gerson Braz</div>
               </div>
 
-              {/* PAINEL OCULTO DO PROFESSOR (Gestão e IA) */}
+              {/* PAINEL DE CORREÇÃO DO PROFESSOR (BRUTALIST RESTAURADO) */}
               {isAdminAuth && (
-                <div className="mt-8 bg-slate-50 border border-slate-200 rounded-2xl p-6 print:hidden shadow-sm mx-auto max-w-4xl space-y-6">
+                <div className="mt-12 bg-white border-8 border-black p-6 print:hidden shadow-[12px_12px_0px_black] mx-auto max-w-4xl space-y-8">
+                  <h3 className="text-3xl font-black uppercase bg-black text-white p-3 inline-block shadow-[4px_4px_0px_white]">Área de Correção Docente</h3>
                   
-                  <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
-                     <Settings className="text-slate-500" size={24}/>
-                     <h3 className="text-xl font-bold text-slate-800">Área de Correção e Auditoria</h3>
-                  </div>
-                  
-                  {/* Controles Básicos */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                      <span className="block font-semibold text-slate-700 text-sm mb-2">Vincular Atividade/Turma:</span>
-                      <select 
-                        value={formData.atividadeId || ""} 
-                        onChange={(e) => vincularAtividadeProjetoAntigo(docId, e.target.value)}
-                        className="w-full p-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                      >
+                  {/* Bloco de Atribuição e Nota */}
+                  <div className="bg-purple-200 p-6 border-4 border-black shadow-[4px_4px_0px_black] flex flex-col md:flex-row gap-6">
+                    <div className="w-full">
+                      <label className="font-black uppercase text-sm block mb-2">Vincular Atividade/Turma:</label>
+                      <select value={formData.atividadeId || ""} onChange={(e) => vincularAtividadeProjetoAntigo(docId, e.target.value)} className={inputStyle}>
                         <option value="">-- Escolha a Turma --</option>
-                        {atividades.map(a => (<option key={a.id} value={a.id}>{a.nome} ({a.turma})</option>))}
+                        {atividades.map(a => (<option key={a.id} value={a.id}>{a.turma}</option>))}
                       </select>
                     </div>
-
-                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                      <span className="block font-semibold text-slate-700 text-sm mb-2">Definir/Modificar Nota:</span>
-                      <div className="relative">
-                        <input 
-                          type="number" step="0.1" 
-                          value={formData.notaFinal || ""} 
-                          onChange={(e) => setFormData({ ...formData, notaFinal: e.target.value })}
-                          onBlur={(e) => salvarNotaProfessor(docId, e.target.value)}
-                          placeholder="Ex: 8.5"
-                          className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
-                        <Award className="absolute left-3 top-2.5 text-slate-400" size={16}/>
-                      </div>
+                    <div className="w-full md:w-1/3">
+                      <label className="font-black uppercase text-sm block mb-2">Nota Final:</label>
+                      <input type="number" step="0.1" value={formData.notaFinal || ""} onChange={(e) => setFormData({ ...formData, notaFinal: e.target.value })} onBlur={(e) => salvarNotaProfessor(docId, e.target.value)} className={`${inputStyle} text-center text-xl`} />
                     </div>
                   </div>
 
-                  {/* BLOCO 1: PRÉ-AVALIAÇÃO DA IA (DOSSIÊ) */}
-                  <div className="bg-white p-5 rounded-xl border border-indigo-100 shadow-sm">
-                    <h4 className="font-bold text-indigo-900 mb-3 flex items-center gap-2"><Rocket size={18}/> Dossiê de Avaliação (IA)</h4>
+                  {/* BLOCO 1: Dossiê IA */}
+                  <div className="bg-cyan-100 border-4 border-black p-6 shadow-[4px_4px_0px_black]">
+                    <h4 className="font-black uppercase text-xl mb-4 border-b-4 border-black pb-2 flex items-center gap-2"><Rocket size={24}/> Dossiê de Correção (IA)</h4>
                     {!formData.avaliacaoProfessorIA ? (
-                      <button onClick={gerarAvaliacaoProfessor} disabled={isIAProfWait} className="w-full text-white bg-indigo-600 hover:bg-indigo-700 font-medium rounded-lg text-sm px-5 py-2.5 text-center transition-all disabled:opacity-50">
-                        {isIAProfWait ? "LENDO PROJETO..." : "Gerar Sugestão de Nota e Críticas"}
+                      <button onClick={gerarAvaliacaoProfessor} disabled={isIAProfWait} className={`${btnBrutal} bg-black text-white w-full`}>
+                        {isIAProfWait ? "PROCESSANDO DOSSIÊ..." : "GERAR SUGESTÃO DE NOTA (IA)"}
                       </button>
                     ) : (
-                      <div className="space-y-3">
-                        <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100 text-sm whitespace-pre-wrap leading-relaxed text-indigo-900">
-                          {formData.avaliacaoProfessorIA}
-                        </div>
-                        <button onClick={gerarAvaliacaoProfessor} disabled={isIAProfWait} className="text-xs font-semibold uppercase text-indigo-600 hover:text-indigo-800 transition-colors">
-                          ↻ Recalcular Dossiê
-                        </button>
+                      <div className="space-y-4">
+                        <div className="bg-white p-4 border-4 border-black text-sm whitespace-pre-wrap font-medium">{formData.avaliacaoProfessorIA}</div>
+                        <button onClick={gerarAvaliacaoProfessor} disabled={isIAProfWait} className="text-xs font-black uppercase underline hover:text-blue-600">↻ Refazer Dossiê</button>
                       </div>
                     )}
                   </div>
 
-                  {/* BLOCO 2: O GERADOR DE PROVA ANTI-TURISTA */}
-                  <div className="bg-white p-5 rounded-xl border border-orange-100 shadow-sm">
-                    <h4 className="font-bold text-orange-900 mb-3 flex items-center gap-2"><FileText size={18}/> Gerador de Prova Anti-Turista</h4>
-                    <p className="text-xs text-slate-500 mb-4">Gera 3 questões de múltipla escolha baseadas nos detalhes *deste projeto* para pegar alunos que não participaram da ideação.</p>
+                  {/* BLOCO 2: GERADOR DE PROVA OFICIAL */}
+                  <div className="bg-orange-300 border-4 border-black p-6 shadow-[4px_4px_0px_black]">
+                    <h4 className="font-black uppercase text-xl mb-2 flex items-center gap-2"><FileText size={24}/> Gerador de Prova Oficial</h4>
+                    <p className="text-sm font-bold bg-white p-2 border-2 border-black mb-6">Gera 6 questões (3 de GC + 3 específicas do projeto) personalizadas para impressão.</p>
                     
                     {!formData.provaProfessorIA ? (
-                      <button onClick={gerarProvaDoGrupo} disabled={isProvaWait} className="w-full text-white bg-orange-500 hover:bg-orange-600 font-medium rounded-lg text-sm px-5 py-2.5 text-center transition-all disabled:opacity-50">
-                        {isProvaWait ? "CRIANDO PEGADINHAS..." : "Gerar Prova Individual do Grupo"}
+                      <button onClick={gerarProvaDoGrupo} disabled={isProvaWait} className={`${btnBrutal} bg-white w-full hover:bg-orange-100`}>
+                        {isProvaWait ? "MONTANDO QUESTÕES..." : "GERAR PROVA DA EQUIPE (IA)"}
                       </button>
                     ) : (
-                      <div className="space-y-3">
-                        <div className="bg-orange-50 p-4 rounded-lg border border-orange-200 text-sm whitespace-pre-wrap leading-relaxed text-slate-800 font-medium selection:bg-orange-200">
-                          {formData.provaProfessorIA}
+                      <div className="space-y-6">
+                        {/* Seletor de Personalização */}
+                        <div className="bg-white p-4 border-4 border-black flex items-center gap-4">
+                          <label className="font-black uppercase text-sm">Personalizar p/ Aluno:</label>
+                          <select 
+                            value={alunoSelecionadoProva} 
+                            onChange={(e) => setAlunoSelecionadoProva(e.target.value)} 
+                            className="p-2 border-2 border-black font-bold text-sm bg-yellow-100 flex-1 outline-none"
+                          >
+                            {formData.alunos.map((a, i) => (<option key={i} value={a}>{a}</option>))}
+                          </select>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <button onClick={() => navigator.clipboard.writeText(formData.provaProfessorIA).then(() => alert("Prova copiada! Cole no Word ou Forms."))} className="text-xs bg-white border border-slate-300 px-3 py-1.5 rounded-md hover:bg-slate-50 font-bold text-slate-700">
-                            📋 Copiar Texto da Prova
+
+                        {/* Prova Renderizada com nome substituído */}
+                        <div className="bg-white p-6 border-4 border-black text-sm whitespace-pre-wrap leading-relaxed font-serif shadow-[inset_0_0_10px_rgba(0,0,0,0.1)]">
+                          {formData.provaProfessorIA.replace(/\[NOME_DO_ALUNO\]/g, alunoSelecionadoProva)}
+                        </div>
+
+                        <div className="flex flex-wrap justify-between items-center gap-4">
+                          <button onClick={() => {
+                            const provaTexto = formData.provaProfessorIA.replace(/\[NOME_DO_ALUNO\]/g, alunoSelecionadoProva);
+                            navigator.clipboard.writeText(provaTexto).then(() => alert("Prova copiada! Cole no Word."));
+                          }} className={`${btnBrutal} bg-black text-white`}>
+                            📋 Copiar Prova
                           </button>
-                          <button onClick={gerarProvaDoGrupo} disabled={isProvaWait} className="text-xs font-semibold uppercase text-orange-600 hover:text-orange-800 transition-colors">
+                          <button onClick={gerarProvaDoGrupo} disabled={isProvaWait} className="text-xs font-black uppercase underline hover:text-black">
                             ↻ Gerar Novas Questões
                           </button>
                         </div>
                       </div>
                     )}
                   </div>
-
                 </div>
               )}
             </div>
@@ -905,25 +717,19 @@ export default function GCLabPro() {
 
           {(formData.atividadeId || docId) && (
             <div className="mt-12 flex justify-between gap-4 print:hidden">
-              {step > 1 && <button onClick={() => setStep(step - 1)} className={`${btnBrutal} bg-white hover:bg-gray-50`}>Voltar</button>}
+              {step > 1 && <button onClick={() => setStep(step - 1)} className={`${btnBrutal} bg-white`}>Voltar</button>}
               {step < 4 ? (
-                <button onClick={() => salvarNoFirebase(step + 1)} className={`${btnBrutal} bg-cyan-400 hover:bg-cyan-500`}>Avançar</button>
+                <button onClick={() => salvarNoFirebase(step + 1)} className={`${btnBrutal} bg-cyan-400`}>Avançar</button>
               ) : step === 4 ? (
                 <button 
                   onClick={() => salvarNoFirebase(5)} 
-                  disabled={!(
-                    formData.chkOrcamento && formData.justOrcamento?.length > 10 && 
-                    formData.chkTempo && formData.justTempo?.length > 10 && 
-                    formData.chkManutencao && formData.justManutencao?.length > 10 && 
-                    formData.evidencias && formData.evidencias.length > 0 && 
-                    formData.feedbackIA
-                  )} 
-                  className={`${btnBrutal} bg-lime-400 disabled:opacity-50 hover:bg-lime-500`}
+                  disabled={!(formData.chkOrcamento && formData.justOrcamento && formData.chkTempo && formData.justTempo && formData.chkManutencao && formData.justManutencao && formData.feedbackIA)} 
+                  className={`${btnBrutal} bg-lime-400 disabled:opacity-50`}
                 >
-                  Gerar Relatório Executivo
+                  Gerar Relatório
                 </button>
               ) : (
-                <button onClick={() => window.print()} className={`${btnBrutal} bg-black text-white hover:bg-gray-800`}>🖨️ Imprimir PDF</button>
+                <button onClick={() => window.print()} className={`${btnBrutal} bg-black text-white`}>🖨️ Imprimir PDF</button>
               )}
             </div>
           )}
