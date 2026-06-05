@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Info, Lightbulb, ClipboardCheck, Rocket, UploadCloud, Link, Users, Eye, MessageSquareQuote, ShieldCheck, FolderPlus, ArrowLeft, CheckCircle, Clock, History, FileText, Award, Printer } from 'lucide-react';
+import { Plus, Trash2, Info, Lightbulb, ClipboardCheck, Rocket, UploadCloud, Link, Users, Eye, MessageSquareQuote, ShieldCheck, FolderPlus, ArrowLeft, CheckCircle, Clock, History, FileText, Award, X } from 'lucide-react';
 import { db, storage } from '../firebase';
 import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, getDocs, query, orderBy, getDoc, where } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
@@ -21,13 +21,9 @@ export default function GCLabPro() {
   const [projetosRemotos, setProjetosRemotos] = useState([]);
   const [projetosFiltrados, setProjetosFiltrados] = useState([]);
   
-  // Estados para a Prova Personalizada
+  // Estado para gerenciar a prova do grupo selecionado no Dashboard
+  const [grupoExameFoco, setGrupoExameFoco] = useState(null);
   const [alunoSelecionadoProva, setAlunoSelecionadoProva] = useState("");
-  
-  // Estados do Gerador em LOTE
-  const [isBatchGenerating, setIsBatchGenerating] = useState(false);
-  const [batchProgress, setBatchProgress] = useState("");
-  const [batchData, setBatchData] = useState(null); // Armazena as provas e gabaritos para impressão
 
   // Formulário para criar atividade
   const [novaAtivNome, setNovaAtivNome] = useState("");
@@ -96,7 +92,6 @@ export default function GCLabPro() {
         setFormData(data);
         setDocId(docSnap.id);
         setStep(data.etapaConcluida);
-        if(data.alunos && data.alunos.length > 0) setAlunoSelecionadoProva(data.alunos[0]);
         if(data.feedbackIA) setFeedbackConselho(data.feedbackIA);
         window.history.replaceState(null, '', `?id=${docSnap.id}`);
       } else { alert("Projeto não encontrado!"); }
@@ -213,102 +208,55 @@ export default function GCLabPro() {
     setIsIAProfWait(false);
   };
 
-  // Função Auxiliar para gerar o texto da prova de um projeto específico
-  const gerarProvaIA = async (projeto) => {
-    const prompt = `Você é o Professor Gerson Braz. Sua missão é gerar uma avaliação acadêmica oficial. É REQUISITO OBRIGATÓRIO que você siga exatamente a estrutura abaixo.
+  // GERADOR FOCADO POR GRUPO (BLINDADO E DETALHADO)
+  const gerarProvaDoGrupoFoco = async (projeto) => {
+    setIsProvaWait(true);
+    const prompt = `Você é o Professor Gerson Braz. Sua missão é gerar uma avaliação acadêmica oficial e rigorosa para a disciplina de Gestão do Conhecimento no curso de Sistemas de Informação da Uniara. É REQUISITO OBRIGATÓRIO seguir exatamente a estrutura de 6 questões abaixo.
 
-    ESTRUTURA OBRIGATÓRIA:
+    ESTRUTURA OBRIGATÓRIA DA RESPOSTA:
+
     1. CABEÇALHO EXATO:
     INSTITUIÇÃO: Uniara
     CURSO: Sistemas de Informação
     DISCIPLINA: Gestão do Conhecimento
     PROFESSOR: Gerson Braz
     ALUNO(A): [NOME_DO_ALUNO]
-    GRUPO ANALISADO: ${projeto.nomeGrupo || 'Sem Nome'}
+    GRUPO MONITORADO: ${projeto.nomeGrupo || 'Sem Nome'}
 
-    2. QUESTÕES TEÓRICAS (Questões 1 a 3):
-    Crie 3 questões de múltipla escolha (A, B, C, D) focadas em conceitos teóricos de Gestão do Conhecimento.
+    2. QUESTÕES TEÓRICAS DE GESTÃO DO CONHECIMENTO (Questões 1, 2 e 3):
+    Crie exatamente 3 questões de múltipla escolha (A, B, C, D) focadas em conceitos teóricos puros da nossa disciplina (ex: conhecimento tácito vs explícito, espiral de Nonaka e Takeuchi, socialização, externalização, silos de informação).
 
-    3. QUESTÕES PRÁTICAS DO PROJETO (Questões 4 a 6):
-    Crie 3 questões de múltipla escolha (A, B, C, D) baseadas estritamente nas decisões deste grupo:
-    - Empresa analisada: ${projeto.empresa}
-    - Gargalo: ${projeto.gapPrincipal}
-    - Ferramenta: ${projeto.f2Ferramenta}
-    - Tempo na rotina: ${projeto.justTempo}
+    3. QUESTÕES PRÁTICAS AUDITORIA DO PROJETO (Questões 4, 5 e 6):
+    Crie exatamente 3 questões de múltipla escolha (A, B, C, D) baseadas estritamente nos dados reais que este grupo preencheu no laboratório para pegar alunos caronas que não participaram:
+    - Empresa alvo do grupo: ${projeto.empresa}
+    - Problema estratégico mapeado: ${projeto.gapPrincipal}
+    - Ferramenta tecnológica escolhida (Fase 2): ${projeto.f2Ferramenta}
+    - Justificativa operacional de tempo na rotina: ${projeto.justTempo}
 
-    4. DIVISOR DE GABARITO:
-    No final da última alternativa da questão 6, pule uma linha e digite EXATAMENTE a tag:
+    4. DIVISOR DE SEGURANÇA:
+    Logo após a alternativa D da questão 6, pule uma linha e digite exatamente:
     ###GABARITO###
 
     5. GABARITO OFICIAL:
-    Abaixo da tag, coloque apenas as respostas corretas (ex: 1-A, 2-B, etc).`;
+    Abaixo da tag, coloque as alternativas corretas (ex: 1-A, 2-C, etc).`;
 
-    const response = await fetch('/api/validar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
-    const data = await response.json();
-    return data.candidates[0].content.parts[0].text;
-  };
-
-  // Gerar prova individual no modo unitário
-  const gerarProvaDoGrupo = async () => {
-    setIsProvaWait(true);
     try {
-      const textoIA = await gerarProvaIA(formData);
-      setFormData(prev => ({ ...prev, provaProfessorIA: textoIA }));
-      await updateDoc(doc(db, "projetos_gc", docId), { provaProfessorIA: textoIA });
-      if (formData.alunos && formData.alunos.length > 0) setAlunoSelecionadoProva(formData.alunos[0]);
-    } catch (e) { alert("Erro de resposta da IA."); }
+      const response = await fetch('/api/validar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
+      const data = await response.json();
+      const textoIA = data.candidates[0].content.parts[0].text;
+      
+      // Atualiza o banco de dados
+      await updateDoc(doc(db, "projetos_gc", projeto.id), { provaProfessorIA: textoIA });
+      
+      // Atualiza os estados locais da listagem e do modal ativo
+      const projetoAtualizado = { ...projeto, provaProfessorIA: textoIA };
+      setGrupoExameFoco(projetoAtualizado);
+      setProjetosFiltrados(projetosFiltrados.map(p => p.id === projeto.id ? projetoAtualizado : p));
+      setProjetosRemotos(projetosRemotos.map(p => p.id === projeto.id ? projetoAtualizado : p));
+      if(projeto.alunos && projeto.alunos.length > 0) setAlunoSelecionadoProva(projeto.alunos[0]);
+    } catch (e) { alert("Erro ao acionar a IA para a prova."); }
     setIsProvaWait(false);
   };
-
-  // A GRANDE MÁGICA: GERADOR EM LOTE PARA A TURMA TODA
-  const iniciarGeracaoEmLote = async () => {
-    if(!window.confirm(`Isso irá gerar provas individuais para todos os alunos de todos os grupos desta turma. O processo pode levar alguns minutos. Continuar?`)) return;
-    
-    setIsBatchGenerating(true);
-    let provasIndividuais = [];
-    let gabaritosMestre = [];
-
-    // Filtra apenas grupos que têm alunos cadastrados
-    const gruposValidos = projetosFiltrados.filter(p => p.alunos && p.alunos.length > 0);
-
-    for (let i = 0; i < gruposValidos.length; i++) {
-      let projeto = gruposValidos[i];
-      setBatchProgress(`Processando grupo ${i + 1} de ${gruposValidos.length}: ${projeto.nomeGrupo}...`);
-      
-      let textoCompletoIA = projeto.provaProfessorIA;
-      
-      // Se o grupo ainda não tem prova gerada, a IA cria agora e salva no banco
-      if (!textoCompletoIA || !textoCompletoIA.includes("###GABARITO###")) {
-         textoCompletoIA = await gerarProvaIA(projeto);
-         await updateDoc(doc(db, "projetos_gc", projeto.id), { provaProfessorIA: textoCompletoIA });
-         // Atualiza o estado local para evitar refetch futuro
-         projeto.provaProfessorIA = textoCompletoIA;
-      }
-
-      // Separa a Prova do Gabarito usando a tag invisível
-      const partes = textoCompletoIA.split("###GABARITO###");
-      const conteudoProva = partes[0];
-      const conteudoGabarito = partes[1] || "Gabarito não formatado corretamente.";
-
-      // Multiplica a prova para cada aluno do grupo, trocando a tag pelo nome real
-      for (let aluno of projeto.alunos) {
-         let provaDoAluno = conteudoProva.replace(/\[NOME_DO_ALUNO\]/g, aluno);
-         provasIndividuais.push(provaDoAluno);
-      }
-
-      // Guarda o gabarito resumido do grupo
-      gabaritosMestre.push({
-         grupo: projeto.nomeGrupo,
-         empresa: projeto.empresa,
-         respostas: conteudoGabarito.trim()
-      });
-    }
-
-    setBatchData({ provas: provasIndividuais, gabaritos: gabaritosMestre });
-    setIsBatchGenerating(false);
-    setBatchProgress("");
-  };
-
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -327,7 +275,7 @@ export default function GCLabPro() {
 
   const copiarLinkDoGrupo = () => {
     navigator.clipboard.writeText(`${window.location.origin}?id=${docId}`);
-    alert("Link copiado! Mande no WhatsApp da equipe.");
+    alert("Link do grupo copiado com sucesso!");
   };
 
   const handleChange = (e) => {
@@ -346,59 +294,7 @@ export default function GCLabPro() {
   const projetosOrfaos = projetosRemotos.filter(p => !p.atividadeId || p.atividadeId === "");
 
   // =========================================================================
-  // RENDERIZAÇÃO DA CENTRAL DE IMPRESSÃO EM LOTE (CADERNO DE PROVAS)
-  // =========================================================================
-  if (batchData) {
-    return (
-      <div className="bg-gray-100 min-h-screen p-4 print:p-0 print:bg-white font-serif text-black">
-        
-        {/* Barra de Controles Fixa (Não sai na impressão) */}
-        <div className="bg-black text-white p-4 flex justify-between items-center fixed top-0 w-full z-50 shadow-lg print:hidden">
-          <div>
-            <h2 className="text-xl font-black uppercase">Central de Impressão (Lote)</h2>
-            <p className="text-xs text-lime-400 font-bold">{batchData.provas.length} alunos processados | {batchData.gabaritos.length} grupos</p>
-          </div>
-          <div className="flex gap-4">
-             <button onClick={() => setBatchData(null)} className="bg-white text-black px-4 py-2 font-black text-xs uppercase border-2 border-white hover:bg-gray-200">
-               Voltar ao Painel
-             </button>
-             <button onClick={() => window.print()} className="bg-lime-400 text-black px-6 py-2 font-black text-sm uppercase flex items-center gap-2 border-2 border-lime-400 hover:bg-lime-500">
-               <Printer size={18}/> Imprimir Todas
-             </button>
-          </div>
-        </div>
-
-        <div className="pt-24 print:pt-0 max-w-4xl mx-auto">
-           {/* Loop que gera uma página física para cada aluno */}
-           {batchData.provas.map((provaHTML, index) => (
-             <div key={index} className="bg-white p-12 mb-8 shadow-xl border border-gray-300 min-h-[297mm] break-after-page print:shadow-none print:border-none print:m-0 print:p-8">
-               <div className="whitespace-pre-wrap leading-relaxed text-sm">
-                 {provaHTML.replace("###GABARITO###", "")} {/* Limpa sujeira da tag caso vaze */}
-               </div>
-             </div>
-           ))}
-
-           {/* Caderno Mestre de Gabaritos (Fica nas últimas páginas) */}
-           <div className="bg-yellow-50 p-12 shadow-xl border-4 border-black min-h-[297mm] break-before-page print:shadow-none print:m-0 print:p-8">
-              <h1 className="text-3xl font-black uppercase border-b-4 border-black pb-4 mb-8 text-center tracking-widest">
-                Gabarito Oficial do Professor
-              </h1>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {batchData.gabaritos.map((gab, idx) => (
-                  <div key={idx} className="bg-white border-2 border-black p-4">
-                    <p className="font-black uppercase text-sm bg-black text-white p-2 mb-2">{gab.grupo} <span className="font-normal text-xs text-gray-300">({gab.empresa})</span></p>
-                    <div className="text-sm font-bold whitespace-pre-wrap">{gab.respostas}</div>
-                  </div>
-                ))}
-              </div>
-           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // =========================================================================
-  // DASHBOARD DO PROFESSOR (Visão Original)
+  // RENDERIZAÇÃO DO DASHBOARD DO PROFESSOR (BRUTALIST ORIGINAL)
   // =========================================================================
   if (showAdmin) {
     return (
@@ -410,7 +306,7 @@ export default function GCLabPro() {
               <Rocket size={32} className="text-black" />
               <div>
                 <h1 className="text-2xl font-black uppercase text-black leading-none">Painel Docente GC</h1>
-                <p className="text-xs font-bold text-black border-t-2 border-black mt-1 pt-1">Prof. Gerson Braz • Sist. de Informação</p>
+                <p className="text-xs font-bold text-black border-t-2 border-black mt-1 pt-1">Prof. Gerson Braz • SI Uniara</p>
               </div>
            </div>
            <button onClick={() => setShowAdmin(false)} className={`${btnBrutal} bg-white hover:bg-red-400 hover:text-white`}>
@@ -423,6 +319,7 @@ export default function GCLabPro() {
             <div className="space-y-8">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
+                {/* Coluna Esquerda: Nova Atividade */}
                 <div className="lg:col-span-1">
                   <div className="bg-white p-6 border-4 border-black shadow-[8px_8px_0px_black]">
                     <h3 className="text-xl font-black uppercase mb-4 border-b-4 border-black pb-2 flex items-center gap-2">
@@ -439,7 +336,7 @@ export default function GCLabPro() {
                       </div>
                       <div>
                         <label className="block text-xs font-black uppercase mb-1">Nota Máxima</label>
-                        <input type="number" value={novaAtivNotaMax} onChange={(e) => setNovaAtivNotaMax(e.target.value)} className={inputStyle} required />
+                        <input type="number" value={novaAtivNotaMax} className={inputStyle} required />
                       </div>
                       <button type="submit" className={`${btnBrutal} bg-lime-400 w-full mt-4`}>
                         Criar Turma
@@ -448,6 +345,7 @@ export default function GCLabPro() {
                   </div>
                 </div>
 
+                {/* Coluna Direita: Atividades */}
                 <div className="lg:col-span-2 space-y-4">
                   <h3 className="text-2xl font-black uppercase bg-black text-white p-3 inline-block shadow-[4px_4px_0px_white]">Turmas Ativas</h3>
                   {atividades.length === 0 && <p className="text-sm font-bold bg-white p-4 border-4 border-black">Nenhuma turma configurada.</p>}
@@ -472,14 +370,14 @@ export default function GCLabPro() {
                 </div>
               </div>
 
+              {/* Seção Projetos Antigos */}
               <div className="bg-orange-400 border-4 border-black p-6 shadow-[8px_8px_0px_black]">
                 <h3 className="text-xl font-black uppercase text-black mb-2 flex items-center gap-2"><History size={24}/> Projetos Não Vinculados</h3>
-                <p className="text-xs font-bold mb-6 bg-white p-2 border-2 border-black inline-block">Vincule os grupos antigos às turmas criadas.</p>
                 
                 {projetosOrfaos.length === 0 ? (
-                  <p className="text-sm font-black bg-white p-3 border-4 border-black inline-block">Nenhum projeto pendente.</p>
+                  <p className="text-sm font-black bg-white p-3 border-4 border-black inline-block">Nenhum projeto antigo pendente.</p>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-4 mt-4">
                     {projetosOrfaos.map(p => (
                       <div key={p.id} className="bg-white border-4 border-black p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
@@ -488,18 +386,13 @@ export default function GCLabPro() {
                         </div>
                         <div className="flex flex-wrap items-center gap-4">
                           <div className="flex items-center gap-2">
-                            <label className="text-xs font-black uppercase">Turma:</label>
+                            <label className="text-xs font-black uppercase">Mover para:</label>
                             <select onChange={(e) => { if(e.target.value) vincularAtividadeProjetoAntigo(p.id, e.target.value); }} className={inputStyle} style={{padding: '5px'}} defaultValue="">
                               <option value="" disabled>Selecionar</option>
                               {atividades.map(a => (<option key={a.id} value={a.id}>{a.turma}</option>))}
                             </select>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => excluirProjetoDoDashboard(p.id)} className="bg-red-500 text-white p-2 border-2 border-black hover:scale-105"><Trash2 size={16}/></button>
-                            <button onClick={() => { setFormData(p); setDocId(p.id); setFeedbackConselho(p.feedbackIA || ""); setShowAdmin(false); setStep(5); }} className={`${btnBrutal} bg-black text-white py-1 px-3`}>
-                              Abrir
-                            </button>
-                          </div>
+                          <button onClick={() => { setFormData(p); setDocId(p.id); setFeedbackConselho(p.feedbackIA || ""); setShowAdmin(false); setStep(5); }} className={`${btnBrutal} bg-black text-white py-1 px-3`}>Open</button>
                         </div>
                       </div>
                     ))}
@@ -508,83 +401,58 @@ export default function GCLabPro() {
               </div>
             </div>
           ) : (
-            /* VISÃO B: DASHBOARD DA TURMA (Com botão de Lote) */
+            /* VISÃO B: DENTRO DE UMA TURMA */
             <div className="space-y-6">
               
               <button onClick={() => setAtividadeSelecionada(null)} className={`${btnBrutal} bg-white inline-flex`}>
                 <ArrowLeft size={16} /> Voltar
               </button>
 
-              <div className="bg-purple-700 text-white p-8 border-4 border-black shadow-[8px_8px_0px_black] relative">
+              <div className="bg-purple-700 text-white p-6 border-4 border-black shadow-[8px_8px_0px_black]">
                 <span className="bg-white text-black font-black uppercase px-3 py-1 border-2 border-black text-xs">{atividadeSelecionada.turma}</span>
-                <h2 className="text-4xl font-black uppercase mt-4">{atividadeSelecionada.nome}</h2>
-                <div className="flex gap-4 mt-6">
-                  <div className="bg-black p-3 border-2 border-white"><p className="text-xs font-bold text-gray-400">Nota Máx</p><p className="text-xl font-black">{atividadeSelecionada.notaMaxima}</p></div>
-                  <div className="bg-black p-3 border-2 border-white"><p className="text-xs font-bold text-gray-400">Grupos</p><p className="text-xl font-black">{projetosFiltrados.length}</p></div>
-                </div>
-                
-                {/* BOTÃO MÁGICO DE GERAR EM LOTE FICA AQUI */}
-                <div className="absolute right-8 bottom-8 hidden md:block">
-                  <button onClick={iniciarGeracaoEmLote} disabled={isBatchGenerating || projetosFiltrados.length === 0} className="bg-lime-400 text-black px-6 py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0px_black] hover:bg-lime-500 hover:translate-y-1 hover:translate-x-1 hover:shadow-none transition-all flex items-center gap-3 disabled:opacity-50">
-                    <Printer size={24}/> 
-                    {isBatchGenerating ? "MONTANDO CADERNO..." : "GERAR LOTE DE PROVAS (TURMA)"}
-                  </button>
-                </div>
+                <h2 className="text-3xl font-black uppercase mt-4">{atividadeSelecionada.nome}</h2>
               </div>
-              
-              {/* O mesmo botão mágico para versão mobile */}
-              <div className="block md:hidden">
-                 <button onClick={iniciarGeracaoEmLote} disabled={isBatchGenerating || projetosFiltrados.length === 0} className="bg-lime-400 text-black px-6 py-4 w-full border-4 border-black font-black uppercase flex items-center justify-center gap-3 disabled:opacity-50">
-                    <Printer size={20}/> 
-                    {isBatchGenerating ? "PROCESSANDO..." : "GERAR LOTE DE PROVAS"}
-                  </button>
-              </div>
-
-              {/* Status do Processamento em Lote */}
-              {isBatchGenerating && (
-                <div className="bg-black text-lime-400 p-4 border-4 border-lime-400 font-mono text-sm uppercase animate-pulse">
-                  A IA ESTÁ LENDO OS PROJETOS... {batchProgress}
-                </div>
-              )}
 
               <div className="bg-white border-4 border-black shadow-[8px_8px_0px_black]">
-                <div className="bg-yellow-400 p-4 border-b-4 border-black"><h3 className="text-xl font-black uppercase">Mapeamento de Grupos</h3></div>
+                <div className="bg-yellow-400 p-4 border-b-4 border-black"><h3 className="text-xl font-black uppercase">Grupos da Turma ({projetosFiltrados.length})</h3></div>
                 
                 <div className="p-6 space-y-4">
-                  {projetosFiltrados.length === 0 && <p className="font-bold text-center py-6">Nenhum grupo vinculado ainda.</p>}
+                  {projetosFiltrados.length === 0 && <p className="font-bold text-center py-6">Nenhum grupo ativo.</p>}
                   
                   {projetosFiltrados.map(p => {
                     const isConcluido = p.etapaConcluida === 5;
-                    const isAvaliado = p.notaFinal !== undefined && p.notaFinal !== "";
+                    const temProva = p.provaProfessorIA && p.provaProfessorIA.includes("###GABARITO###");
+
                     return (
                       <div key={p.id} className="bg-gray-50 border-4 border-black p-5 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 hover:bg-yellow-50 transition-colors">
                         <div className="flex-1">
                           <h4 className="text-xl font-black uppercase">{p.nomeGrupo || "Sem Nome"}</h4>
-                          <p className="text-xs font-bold uppercase bg-white border-2 border-black px-2 py-1 inline-block mt-1 mb-3">{p.empresa}</p>
-                          <p className="text-xs font-bold text-gray-600 mb-3">Integrantes: {p.alunos?.join(", ")}</p>
-                          
-                          <div className="flex flex-wrap gap-2">
-                            <span className={`text-[10px] font-black px-2 py-1 border-2 border-black uppercase ${isConcluido ? 'bg-lime-400' : 'bg-orange-400'}`}>
-                              {isConcluido ? 'CONCLUÍDO' : `ETAPA ${p.etapaConcluida}`}
-                            </span>
-                            <span className={`text-[10px] font-black px-2 py-1 border-2 border-black uppercase ${isAvaliado ? 'bg-cyan-400' : 'bg-white'}`}>
-                              {isAvaliado ? `AVALIADO` : 'SEM NOTA'}
-                            </span>
-                          </div>
+                          <p className="text-xs font-bold uppercase bg-white border-2 border-black px-2 py-0.5 inline-block mt-1 mb-2">{p.empresa}</p>
+                          <p className="text-xs font-bold text-gray-600">Alunos: {p.alunos?.join(", ")}</p>
+                          <p className="text-[10px] font-mono text-gray-400 mt-1">Token: {p.id}</p>
                         </div>
 
-                        <div className="flex items-center gap-4 w-full lg:w-auto border-t-4 border-black pt-4 lg:border-t-0 lg:pt-0">
-                          <div className="flex items-center gap-2 bg-white p-2 border-4 border-black">
+                        {/* Ações Diretas na Linha do Dashboard */}
+                        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                          
+                          {/* BOTÃO DA CENTRAL DE PROVA DO GRUPO */}
+                          <button 
+                            onClick={() => {
+                              setGrupoExameFoco(p);
+                              if(p.alunos && p.alunos.length > 0) setAlunoSelecionadoProva(p.alunos[0]);
+                            }} 
+                            className={`${btnBrutal} py-2 px-4 ${temProva ? 'bg-orange-400 text-black' : 'bg-white text-gray-500'}`}
+                          >
+                            <FileText size={16}/> {temProva ? "Ver Prova" : "Criar Prova"}
+                          </button>
+
+                          <div className="flex items-center gap-2 bg-white p-1.5 border-4 border-black">
                             <span className="font-black text-xs uppercase">Nota:</span>
-                            <input type="number" step="0.1" defaultValue={p.notaFinal || ""} onBlur={(e) => salvarNotaProfessor(p.id, e.target.value)} className="w-16 p-1 border-2 border-black font-black text-center outline-none bg-yellow-100" />
+                            <input type="number" step="0.1" defaultValue={p.notaFinal || ""} onBlur={(e) => salvarNotaProfessor(p.id, e.target.value)} className="w-14 p-0.5 border-2 border-black font-black text-center bg-yellow-100" />
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => excluirProjetoDoDashboard(p.id)} className="bg-red-500 text-white p-3 border-4 border-black hover:bg-red-600"><Trash2 size={20}/></button>
-                            <button onClick={() => { setFormData(p); setDocId(p.id); setFeedbackConselho(p.feedbackIA || ""); setShowAdmin(false); setStep(5); }} className={`${btnBrutal} bg-black text-white px-4`}>
-                              Abrir
-                            </button>
-                          </div>
+                          <button onClick={() => excluirProjetoDoDashboard(p.id)} className="bg-red-500 text-white p-2.5 border-4 border-black hover:bg-red-600"><Trash2 size={18}/></button>
+                          <button onClick={() => { setFormData(p); setDocId(p.id); setFeedbackConselho(p.feedbackIA || ""); setShowAdmin(false); setStep(5); }} className={`${btnBrutal} bg-black text-white py-2 px-3`}><Eye size={16}/></button>
                         </div>
                       </div>
                     );
@@ -594,18 +462,100 @@ export default function GCLabPro() {
             </div>
           )}
         </div>
+
+        {/* =========================================================================
+            MODAL/BOX DA CENTRAL DE PROVAS DO GRUPO (BRUTALIST INLINE)
+            ========================================================================= */}
+        {grupoExameFoco && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <div className="bg-white border-8 border-black p-6 w-full max-w-3xl shadow-[12px_12px_0px_black] space-y-6 relative max-h-[90vh] overflow-y-auto">
+               
+               <button onClick={() => setGrupoExameFoco(null)} className="absolute top-4 right-4 border-4 border-black p-1 bg-red-500 text-white font-black">
+                 <X size={20}/>
+               </button>
+
+               <div className="bg-orange-400 p-4 border-4 border-black shadow-[4px_4px_0px_black]">
+                 <span className="bg-black text-white text-xs font-black px-2 py-0.5 uppercase">Central do Professor</span>
+                 <h3 className="text-2xl font-black uppercase text-black mt-2">Configurador de Prova: {grupoExameFoco.nomeGrupo}</h3>
+                 <p className="text-xs font-bold text-black mt-1">Empresa Alvo: {grupoExameFoco.empresa} | Alunos: {grupoExameFoco.alunos?.join(", ")}</p>
+               </div>
+
+               {(!grupoExameFoco.provaProfessorIA || !grupoExameFoco.provaProfessorIA.includes("###GABARITO###")) ? (
+                 /* Cenário A: Grupo não tem prova estruturada */
+                 <div className="space-y-4 py-4">
+                   <p className="text-sm font-bold bg-yellow-100 p-3 border-2 border-black">Este grupo ainda não possui uma avaliação construída pelo robô. Clique no gatilho abaixo para mapear as 6 questões oficiais.</p>
+                   <button 
+                     onClick={() => generarProvaDoGrupoFoco(grupoExameFoco)} 
+                     disabled={isProvaWait} 
+                     className={`${btnBrutal} bg-black text-white w-full py-4`}
+                   >
+                     {isProvaWait ? "CONSTRUINDO QUESTIONÁRIO (6 QUESTÕES)..." : "🤖 GERAR PROVA INDIVIDUAL DESTE GRUPO"}
+                   </button>
+                 </div>
+               ) : (
+                 /* Cenário B: Prova gerada, pronta para personalizar/copiar */
+                 <div className="space-y-4">
+                    
+                    {/* Seletor de Personalização de Nome */}
+                    <div className="bg-yellow-200 p-4 border-4 border-black flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-[4px_4px_0px_black]">
+                      <label className="font-black uppercase text-sm whitespace-nowrap">Personalizar Folha do Aluno:</label>
+                      <select 
+                        value={alunoSelecionadoProva} 
+                        onChange={(e) => setAlunoSelecionadoProva(e.target.value)} 
+                        className="p-2 border-4 border-black font-black text-sm bg-white w-full outline-none"
+                      >
+                        {grupoExameFoco.alunos?.map((aluno, i) => (
+                          <option key={i} value={aluno}>{aluno}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Bloco de Visualização Oficial da Prova */}
+                    <div className="bg-white p-6 border-4 border-black font-serif text-sm leading-relaxed max-h-64 overflow-y-auto select-all shadow-[inset_0_0_8px_black]">
+                       {grupoExameFoco.provaProfessorIA.split("###GABARITO###")[0].replace(/\[NOME_DO_ALUNO\]/g, alunoSelecionadoProva)}
+                    </div>
+
+                    {/* Bloco de Gabarito Técnico Secreto */}
+                    <div className="bg-black text-white p-4 border-4 border-gray-600 font-mono text-xs">
+                      <p className="text-lime-400 font-black uppercase mb-1">✓ CHAVE DE RESPOSTAS (GABARITO MESTRE):</p>
+                      {grupoExameFoco.provaProfessorIA.split("###GABARITO###")[1] || "Gabarito não estruturado."}
+                    </div>
+
+                    {/* Ações da Prova */}
+                    <div className="flex flex-wrap gap-4 pt-2">
+                      <button 
+                        onClick={() => {
+                          const provaPronta = grupoExameFoco.provaProfessorIA.split("###GABARITO###")[0].replace(/\[NOME_DO_ALUNO\]/g, alunoSelecionadoProva);
+                          navigator.clipboard.writeText(provaPronta).then(() => alert(`Prova de ${alunoSelecionadoProva} copiada para a área de transferência!`));
+                        }} 
+                        className={`${btnBrutal} bg-lime-400 flex-1`}
+                      >
+                        📋 Copiar Prova de {alunoSelecionadoProva?.split(" ")[0]}
+                      </button>
+                      <button 
+                        onClick={() => generarProvaDoGrupoFoco(grupoExameFoco)} 
+                        disabled={isProvaWait}
+                        className="text-xs font-black uppercase underline hover:text-red-600 ml-auto"
+                      >
+                        {isProvaWait ? "REGERANDO..." : "↻ Refazer Questões"}
+                      </button>
+                    </div>
+
+                 </div>
+               )}
+            </div>
+          </div>
+        )}
+
       </div>
     );
   }
 
-  // =========================================================================
-  // INTERFACE ALUNO E ÁREA DE CORREÇÃO (UNITÁRIA) DO PROFESSOR
-  // =========================================================================
+  // INTERFACE INTERATIVA DO ALUNO (Mantida)
   return (
     <div className="min-h-screen bg-pink-500 p-4 md:p-10 font-sans print:bg-white print:p-0">
       <div className="max-w-5xl mx-auto bg-white border-4 border-black shadow-[12px_12px_0px_rgba(0,0,0,1)] print:border-none print:shadow-none print:max-w-none print:m-0">
         
-        {/* Header Comum */}
         <div className="bg-yellow-400 p-6 border-b-4 border-black flex flex-col md:flex-row justify-between items-center gap-6 print:hidden">
           <div className="flex items-center gap-4">
              <img src={uniaraLogo} alt="Uniara" className="h-12 border-4 border-black bg-white" />
@@ -634,7 +584,6 @@ export default function GCLabPro() {
             <div className="max-w-md mx-auto my-6 space-y-6 print:hidden">
               <div className="border-4 border-black p-6 bg-yellow-100 shadow-[6px_6px_0px_black] space-y-4">
                 <h3 className="text-xl font-black uppercase text-center">Nova Rodada</h3>
-                <p className="text-xs font-bold text-center">Selecione a atividade correspondente para iniciar o projeto.</p>
                 <div className="space-y-2">
                   <select id="codAtivInput" className={inputStyle}>
                     <option value="">-- ESCOLHA A SUA TURMA --</option>
@@ -679,7 +628,6 @@ export default function GCLabPro() {
                   ))}
                 </div>
               </div>
-              {docId && <div className="p-3 bg-black text-lime-400 font-mono text-xs uppercase border-4 border-black select-all">Token do Grupo: {docId}</div>}
             </div>
           )}
 
@@ -751,109 +699,13 @@ export default function GCLabPro() {
                   <div><p className="text-gray-400 uppercase text-[10px] font-bold mb-1">Equipe</p><p className="font-medium text-gray-800">{formData.alunos.join(", ")}</p></div>
                 </div>
 
-                {formData.notaFinal && (
-                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 text-sm font-bold text-blue-950 flex justify-between items-center">
-                    <span>Métrica de Desempenho:</span><span className="text-xl font-black bg-blue-900 text-white px-4 py-1">NOTA: {formData.notaFinal}</span>
-                  </div>
-                )}
-
                 <div className="mb-8">
                   <h3 className="text-blue-900 font-bold uppercase text-xs border-b border-gray-300 pb-2 mb-4">1. Diagnóstico Central</h3>
                   <p className="text-gray-800 bg-gray-50 p-4 border-l-4 border-blue-900 italic">"{formData.gapPrincipal}"</p>
                 </div>
-
-                <div className="mb-8">
-                  <h3 className="text-blue-900 font-bold uppercase text-xs border-b border-gray-300 pb-2 mb-4">2. Parecer do Conselho (IA)</h3>
-                  <div className="text-xs text-gray-700 whitespace-pre-wrap bg-gray-50 p-4 border border-gray-200">{formData.feedbackIA}</div>
-                </div>
                 
                 <div className="mt-16 text-center text-[10px] text-gray-400 border-t border-gray-200 pt-6">Sistema Analítico GC-LAB 4.0 — Prof. Gerson Braz</div>
               </div>
-
-              {/* PAINEL DE CORREÇÃO DO PROFESSOR (BRUTALIST RESTAURADO) */}
-              {isAdminAuth && (
-                <div className="mt-12 bg-white border-8 border-black p-6 print:hidden shadow-[12px_12px_0px_black] mx-auto max-w-4xl space-y-8">
-                  <h3 className="text-3xl font-black uppercase bg-black text-white p-3 inline-block shadow-[4px_4px_0px_white]">Área de Correção Docente</h3>
-                  
-                  {/* Bloco de Atribuição e Nota */}
-                  <div className="bg-purple-200 p-6 border-4 border-black shadow-[4px_4px_0px_black] flex flex-col md:flex-row gap-6">
-                    <div className="w-full">
-                      <label className="font-black uppercase text-sm block mb-2">Vincular Atividade/Turma:</label>
-                      <select value={formData.atividadeId || ""} onChange={(e) => vincularAtividadeProjetoAntigo(docId, e.target.value)} className={inputStyle}>
-                        <option value="">-- Escolha a Turma --</option>
-                        {atividades.map(a => (<option key={a.id} value={a.id}>{a.turma}</option>))}
-                      </select>
-                    </div>
-                    <div className="w-full md:w-1/3">
-                      <label className="font-black uppercase text-sm block mb-2">Nota Final:</label>
-                      <input type="number" step="0.1" value={formData.notaFinal || ""} onChange={(e) => setFormData({ ...formData, notaFinal: e.target.value })} onBlur={(e) => salvarNotaProfessor(docId, e.target.value)} className={`${inputStyle} text-center text-xl`} />
-                    </div>
-                  </div>
-
-                  {/* BLOCO 1: Dossiê IA */}
-                  <div className="bg-cyan-100 border-4 border-black p-6 shadow-[4px_4px_0px_black]">
-                    <h4 className="font-black uppercase text-xl mb-4 border-b-4 border-black pb-2 flex items-center gap-2"><Rocket size={24}/> Dossiê de Correção (IA)</h4>
-                    {!formData.avaliacaoProfessorIA ? (
-                      <button onClick={gerarAvaliacaoProfessor} disabled={isIAProfWait} className={`${btnBrutal} bg-black text-white w-full`}>
-                        {isIAProfWait ? "PROCESSANDO DOSSIÊ..." : "GERAR SUGESTÃO DE NOTA (IA)"}
-                      </button>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="bg-white p-4 border-4 border-black text-sm whitespace-pre-wrap font-medium">{formData.avaliacaoProfessorIA}</div>
-                        <button onClick={gerarAvaliacaoProfessor} disabled={isIAProfWait} className="text-xs font-black uppercase underline hover:text-blue-600">↻ Refazer Dossiê</button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* BLOCO 2: GERADOR DE PROVA OFICIAL UNITÁRIA */}
-                  <div className="bg-orange-300 border-4 border-black p-6 shadow-[4px_4px_0px_black]">
-                    <h4 className="font-black uppercase text-xl mb-2 flex items-center gap-2"><FileText size={24}/> Prova Desta Equipe</h4>
-                    <p className="text-sm font-bold bg-white p-2 border-2 border-black mb-6">Gere ou visualize as provas individualizadas para os membros deste grupo.</p>
-                    
-                    {(!formData.provaProfessorIA || !formData.provaProfessorIA.includes("###GABARITO###")) ? (
-                      <button onClick={gerarProvaDoGrupo} disabled={isProvaWait} className={`${btnBrutal} bg-white w-full hover:bg-orange-100`}>
-                        {isProvaWait ? "MONTANDO QUESTÕES..." : "GERAR PROVA DA EQUIPE (IA)"}
-                      </button>
-                    ) : (
-                      <div className="space-y-6">
-                        <div className="bg-white p-4 border-4 border-black flex items-center gap-4">
-                          <label className="font-black uppercase text-sm">Ver Prova do Aluno:</label>
-                          <select 
-                            value={alunoSelecionadoProva} 
-                            onChange={(e) => setAlunoSelecionadoProva(e.target.value)} 
-                            className="p-2 border-2 border-black font-bold text-sm bg-yellow-100 flex-1 outline-none"
-                          >
-                            {formData.alunos.map((a, i) => (<option key={i} value={a}>{a}</option>))}
-                          </select>
-                        </div>
-
-                        {/* Prova Renderizada (Sem o Gabarito) */}
-                        <div className="bg-white p-6 border-4 border-black text-sm whitespace-pre-wrap leading-relaxed font-serif shadow-[inset_0_0_10px_rgba(0,0,0,0.1)]">
-                          {formData.provaProfessorIA.split("###GABARITO###")[0].replace(/\[NOME_DO_ALUNO\]/g, alunoSelecionadoProva)}
-                        </div>
-                        
-                        {/* Exibe o Gabarito Mestre Oculto */}
-                        <div className="bg-black text-white p-4 border-4 border-gray-600 text-sm whitespace-pre-wrap font-serif">
-                          <p className="text-lime-400 font-black mb-2">GABARITO DESTE GRUPO:</p>
-                          {formData.provaProfessorIA.split("###GABARITO###")[1]}
-                        </div>
-
-                        <div className="flex flex-wrap justify-between items-center gap-4">
-                          <button onClick={() => {
-                            const provaTexto = formData.provaProfessorIA.split("###GABARITO###")[0].replace(/\[NOME_DO_ALUNO\]/g, alunoSelecionadoProva);
-                            navigator.clipboard.writeText(provaTexto).then(() => alert("Prova copiada! Cole no Word."));
-                          }} className={`${btnBrutal} bg-black text-white`}>
-                            📋 Copiar Esta Prova
-                          </button>
-                          <button onClick={gerarProvaDoGrupo} disabled={isProvaWait} className="text-xs font-black uppercase underline hover:text-black">
-                            ↻ Gerar Novas Questões
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
