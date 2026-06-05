@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Info, Lightbulb, ClipboardCheck, Rocket, UploadCloud, Link, Users, Eye, MessageSquareQuote, ShieldCheck, FolderPlus, ArrowLeft, CheckCircle, Clock, History, FileText, Award } from 'lucide-react';
+import { Plus, Trash2, Info, Lightbulb, ClipboardCheck, Rocket, UploadCloud, Link, Users, Eye, MessageSquareQuote, ShieldCheck, FolderPlus, ArrowLeft, CheckCircle, Clock, History, FileText, Award, Printer } from 'lucide-react';
 import { db, storage } from '../firebase';
 import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, getDocs, query, orderBy, getDoc, where } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
@@ -23,6 +23,11 @@ export default function GCLabPro() {
   
   // Estados para a Prova Personalizada
   const [alunoSelecionadoProva, setAlunoSelecionadoProva] = useState("");
+  
+  // Estados do Gerador em LOTE
+  const [isBatchGenerating, setIsBatchGenerating] = useState(false);
+  const [batchProgress, setBatchProgress] = useState("");
+  const [batchData, setBatchData] = useState(null); // Armazena as provas e gabaritos para impressão
 
   // Formulário para criar atividade
   const [novaAtivNome, setNovaAtivNome] = useState("");
@@ -208,48 +213,103 @@ export default function GCLabPro() {
     setIsIAProfWait(false);
   };
 
-  // VERSÃO AJUSTADA: PROMPT IMPERATIVO E ULTRAESTRUTURADO
-  const gerarProvaDoGrupo = async () => {
-    setIsProvaWait(true);
-    const prompt = `Você é o Professor Gerson Braz. Sua missão é gerar uma avaliação acadêmica oficial e rigorosa. É REQUISITO OBRIGATÓRIO que você siga exatamente a estrutura e o número de questões solicitados abaixo. Não pule nenhuma seção.
+  // Função Auxiliar para gerar o texto da prova de um projeto específico
+  const gerarProvaIA = async (projeto) => {
+    const prompt = `Você é o Professor Gerson Braz. Sua missão é gerar uma avaliação acadêmica oficial. É REQUISITO OBRIGATÓRIO que você siga exatamente a estrutura abaixo.
 
-    ESTRUTURA OBRIGATÓRIA DA RESPOSTA (Gere o texto seguindo estritamente esta ordem):
-
+    ESTRUTURA OBRIGATÓRIA:
     1. CABEÇALHO EXATO:
     INSTITUIÇÃO: Uniara
     CURSO: Sistemas de Informação
     DISCIPLINA: Gestão do Conhecimento
     PROFESSOR: Gerson Braz
     ALUNO(A): [NOME_DO_ALUNO]
+    GRUPO ANALISADO: ${projeto.nomeGrupo || 'Sem Nome'}
 
-    2. QUESTÕES TEÓRICAS DE GESTÃO DO CONHECIMENTO (Questões 1, 2 e 3):
-    Crie exatamente 3 questões de múltipla escolha (A, B, C, D) focadas em conceitos fundamentais e teóricos de Gestão do Conhecimento (exemplos: conhecimento tácito vs. explícito, espiral do conhecimento de Nonaka e Takeuchi, silos organizacionais, barreiras culturais de compartilhamento, socialização ou externalização). Estas questões devem testar a teoria pura da disciplina, independente do projeto do grupo.
+    2. QUESTÕES TEÓRICAS (Questões 1 a 3):
+    Crie 3 questões de múltipla escolha (A, B, C, D) focadas em conceitos teóricos de Gestão do Conhecimento.
 
-    3. QUESTÕES PRÁTICAS AUDITORIA DO PROJETO (Questões 4, 5 e 6):
-    Crie exatamente 3 questões de múltipla escolha (A, B, C, D) baseadas estritamente nas decisões tomadas por este grupo no relatório abaixo. O objetivo é que um aluno "carona" que não participou das discussões erre a questão.
-    Use estes dados reais do grupo para criar as perguntas 4, 5 e 6:
-    - Empresa analisada: ${formData.empresa}
-    - Gargalo/Problema central mapeado: ${formData.gapPrincipal}
-    - Ferramenta tecnológica escolhida para a Fase 2: ${formData.f2Ferramenta}
-    - Justificativa de tempo na rotina interna: ${formData.justTempo}
+    3. QUESTÕES PRÁTICAS DO PROJETO (Questões 4 a 6):
+    Crie 3 questões de múltipla escolha (A, B, C, D) baseadas estritamente nas decisões deste grupo:
+    - Empresa analisada: ${projeto.empresa}
+    - Gargalo: ${projeto.gapPrincipal}
+    - Ferramenta: ${projeto.f2Ferramenta}
+    - Tempo na rotina: ${projeto.justTempo}
 
-    4. GABARITO OFICIAL:
-    No final de tudo, inclua o gabarito com a alternativa correta para cada uma das 6 questões.
+    4. DIVISOR DE GABARITO:
+    No final da última alternativa da questão 6, pule uma linha e digite EXATAMENTE a tag:
+    ###GABARITO###
 
-    REGRAS CRÍTICAS:
-    - A prova deve conter um total de EXATAMENTE 6 questões.
-    - Mantenha a tag [NOME_DO_ALUNO] escrita exatamente dessa forma, sem tentar preenchê-la.`;
+    5. GABARITO OFICIAL:
+    Abaixo da tag, coloque apenas as respostas corretas (ex: 1-A, 2-B, etc).`;
 
+    const response = await fetch('/api/validar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
+    const data = await response.json();
+    return data.candidates[0].content.parts[0].text;
+  };
+
+  // Gerar prova individual no modo unitário
+  const gerarProvaDoGrupo = async () => {
+    setIsProvaWait(true);
     try {
-      const response = await fetch('/api/validar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
-      const data = await response.json();
-      const textoIA = data.candidates[0].content.parts[0].text;
+      const textoIA = await gerarProvaIA(formData);
       setFormData(prev => ({ ...prev, provaProfessorIA: textoIA }));
       await updateDoc(doc(db, "projetos_gc", docId), { provaProfessorIA: textoIA });
       if (formData.alunos && formData.alunos.length > 0) setAlunoSelecionadoProva(formData.alunos[0]);
-    } catch (e) { alert("Erro de resposta da IA ao gerar prova."); }
+    } catch (e) { alert("Erro de resposta da IA."); }
     setIsProvaWait(false);
   };
+
+  // A GRANDE MÁGICA: GERADOR EM LOTE PARA A TURMA TODA
+  const iniciarGeracaoEmLote = async () => {
+    if(!window.confirm(`Isso irá gerar provas individuais para todos os alunos de todos os grupos desta turma. O processo pode levar alguns minutos. Continuar?`)) return;
+    
+    setIsBatchGenerating(true);
+    let provasIndividuais = [];
+    let gabaritosMestre = [];
+
+    // Filtra apenas grupos que têm alunos cadastrados
+    const gruposValidos = projetosFiltrados.filter(p => p.alunos && p.alunos.length > 0);
+
+    for (let i = 0; i < gruposValidos.length; i++) {
+      let projeto = gruposValidos[i];
+      setBatchProgress(`Processando grupo ${i + 1} de ${gruposValidos.length}: ${projeto.nomeGrupo}...`);
+      
+      let textoCompletoIA = projeto.provaProfessorIA;
+      
+      // Se o grupo ainda não tem prova gerada, a IA cria agora e salva no banco
+      if (!textoCompletoIA || !textoCompletoIA.includes("###GABARITO###")) {
+         textoCompletoIA = await gerarProvaIA(projeto);
+         await updateDoc(doc(db, "projetos_gc", projeto.id), { provaProfessorIA: textoCompletoIA });
+         // Atualiza o estado local para evitar refetch futuro
+         projeto.provaProfessorIA = textoCompletoIA;
+      }
+
+      // Separa a Prova do Gabarito usando a tag invisível
+      const partes = textoCompletoIA.split("###GABARITO###");
+      const conteudoProva = partes[0];
+      const conteudoGabarito = partes[1] || "Gabarito não formatado corretamente.";
+
+      // Multiplica a prova para cada aluno do grupo, trocando a tag pelo nome real
+      for (let aluno of projeto.alunos) {
+         let provaDoAluno = conteudoProva.replace(/\[NOME_DO_ALUNO\]/g, aluno);
+         provasIndividuais.push(provaDoAluno);
+      }
+
+      // Guarda o gabarito resumido do grupo
+      gabaritosMestre.push({
+         grupo: projeto.nomeGrupo,
+         empresa: projeto.empresa,
+         respostas: conteudoGabarito.trim()
+      });
+    }
+
+    setBatchData({ provas: provasIndividuais, gabaritos: gabaritosMestre });
+    setIsBatchGenerating(false);
+    setBatchProgress("");
+  };
+
+
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file || formData.evidencias?.length >= 5) return;
@@ -267,7 +327,7 @@ export default function GCLabPro() {
 
   const copiarLinkDoGrupo = () => {
     navigator.clipboard.writeText(`${window.location.origin}?id=${docId}`);
-    alert("Link do grupo copiado com sucesso!");
+    alert("Link copiado! Mande no WhatsApp da equipe.");
   };
 
   const handleChange = (e) => {
@@ -286,7 +346,59 @@ export default function GCLabPro() {
   const projetosOrfaos = projetosRemotos.filter(p => !p.atividadeId || p.atividadeId === "");
 
   // =========================================================================
-  // DASHBOARD DO PROFESSOR (BRUTALIST RESTAURADO)
+  // RENDERIZAÇÃO DA CENTRAL DE IMPRESSÃO EM LOTE (CADERNO DE PROVAS)
+  // =========================================================================
+  if (batchData) {
+    return (
+      <div className="bg-gray-100 min-h-screen p-4 print:p-0 print:bg-white font-serif text-black">
+        
+        {/* Barra de Controles Fixa (Não sai na impressão) */}
+        <div className="bg-black text-white p-4 flex justify-between items-center fixed top-0 w-full z-50 shadow-lg print:hidden">
+          <div>
+            <h2 className="text-xl font-black uppercase">Central de Impressão (Lote)</h2>
+            <p className="text-xs text-lime-400 font-bold">{batchData.provas.length} alunos processados | {batchData.gabaritos.length} grupos</p>
+          </div>
+          <div className="flex gap-4">
+             <button onClick={() => setBatchData(null)} className="bg-white text-black px-4 py-2 font-black text-xs uppercase border-2 border-white hover:bg-gray-200">
+               Voltar ao Painel
+             </button>
+             <button onClick={() => window.print()} className="bg-lime-400 text-black px-6 py-2 font-black text-sm uppercase flex items-center gap-2 border-2 border-lime-400 hover:bg-lime-500">
+               <Printer size={18}/> Imprimir Todas
+             </button>
+          </div>
+        </div>
+
+        <div className="pt-24 print:pt-0 max-w-4xl mx-auto">
+           {/* Loop que gera uma página física para cada aluno */}
+           {batchData.provas.map((provaHTML, index) => (
+             <div key={index} className="bg-white p-12 mb-8 shadow-xl border border-gray-300 min-h-[297mm] break-after-page print:shadow-none print:border-none print:m-0 print:p-8">
+               <div className="whitespace-pre-wrap leading-relaxed text-sm">
+                 {provaHTML.replace("###GABARITO###", "")} {/* Limpa sujeira da tag caso vaze */}
+               </div>
+             </div>
+           ))}
+
+           {/* Caderno Mestre de Gabaritos (Fica nas últimas páginas) */}
+           <div className="bg-yellow-50 p-12 shadow-xl border-4 border-black min-h-[297mm] break-before-page print:shadow-none print:m-0 print:p-8">
+              <h1 className="text-3xl font-black uppercase border-b-4 border-black pb-4 mb-8 text-center tracking-widest">
+                Gabarito Oficial do Professor
+              </h1>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {batchData.gabaritos.map((gab, idx) => (
+                  <div key={idx} className="bg-white border-2 border-black p-4">
+                    <p className="font-black uppercase text-sm bg-black text-white p-2 mb-2">{gab.grupo} <span className="font-normal text-xs text-gray-300">({gab.empresa})</span></p>
+                    <div className="text-sm font-bold whitespace-pre-wrap">{gab.respostas}</div>
+                  </div>
+                ))}
+              </div>
+           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // DASHBOARD DO PROFESSOR (Visão Original)
   // =========================================================================
   if (showAdmin) {
     return (
@@ -311,7 +423,6 @@ export default function GCLabPro() {
             <div className="space-y-8">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
-                {/* Coluna Esquerda: Nova Atividade */}
                 <div className="lg:col-span-1">
                   <div className="bg-white p-6 border-4 border-black shadow-[8px_8px_0px_black]">
                     <h3 className="text-xl font-black uppercase mb-4 border-b-4 border-black pb-2 flex items-center gap-2">
@@ -337,7 +448,6 @@ export default function GCLabPro() {
                   </div>
                 </div>
 
-                {/* Coluna Direita: Atividades */}
                 <div className="lg:col-span-2 space-y-4">
                   <h3 className="text-2xl font-black uppercase bg-black text-white p-3 inline-block shadow-[4px_4px_0px_white]">Turmas Ativas</h3>
                   {atividades.length === 0 && <p className="text-sm font-bold bg-white p-4 border-4 border-black">Nenhuma turma configurada.</p>}
@@ -362,7 +472,6 @@ export default function GCLabPro() {
                 </div>
               </div>
 
-              {/* Seção Projetos Antigos (Órfãos) */}
               <div className="bg-orange-400 border-4 border-black p-6 shadow-[8px_8px_0px_black]">
                 <h3 className="text-xl font-black uppercase text-black mb-2 flex items-center gap-2"><History size={24}/> Projetos Não Vinculados</h3>
                 <p className="text-xs font-bold mb-6 bg-white p-2 border-2 border-black inline-block">Vincule os grupos antigos às turmas criadas.</p>
@@ -399,21 +508,44 @@ export default function GCLabPro() {
               </div>
             </div>
           ) : (
-            /* VISÃO B: DASHBOARD DA TURMA */
+            /* VISÃO B: DASHBOARD DA TURMA (Com botão de Lote) */
             <div className="space-y-6">
               
               <button onClick={() => setAtividadeSelecionada(null)} className={`${btnBrutal} bg-white inline-flex`}>
                 <ArrowLeft size={16} /> Voltar
               </button>
 
-              <div className="bg-purple-700 text-white p-8 border-4 border-black shadow-[8px_8px_0px_black]">
+              <div className="bg-purple-700 text-white p-8 border-4 border-black shadow-[8px_8px_0px_black] relative">
                 <span className="bg-white text-black font-black uppercase px-3 py-1 border-2 border-black text-xs">{atividadeSelecionada.turma}</span>
                 <h2 className="text-4xl font-black uppercase mt-4">{atividadeSelecionada.nome}</h2>
                 <div className="flex gap-4 mt-6">
                   <div className="bg-black p-3 border-2 border-white"><p className="text-xs font-bold text-gray-400">Nota Máx</p><p className="text-xl font-black">{atividadeSelecionada.notaMaxima}</p></div>
                   <div className="bg-black p-3 border-2 border-white"><p className="text-xs font-bold text-gray-400">Grupos</p><p className="text-xl font-black">{projetosFiltrados.length}</p></div>
                 </div>
+                
+                {/* BOTÃO MÁGICO DE GERAR EM LOTE FICA AQUI */}
+                <div className="absolute right-8 bottom-8 hidden md:block">
+                  <button onClick={iniciarGeracaoEmLote} disabled={isBatchGenerating || projetosFiltrados.length === 0} className="bg-lime-400 text-black px-6 py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0px_black] hover:bg-lime-500 hover:translate-y-1 hover:translate-x-1 hover:shadow-none transition-all flex items-center gap-3 disabled:opacity-50">
+                    <Printer size={24}/> 
+                    {isBatchGenerating ? "MONTANDO CADERNO..." : "GERAR LOTE DE PROVAS (TURMA)"}
+                  </button>
+                </div>
               </div>
+              
+              {/* O mesmo botão mágico para versão mobile */}
+              <div className="block md:hidden">
+                 <button onClick={iniciarGeracaoEmLote} disabled={isBatchGenerating || projetosFiltrados.length === 0} className="bg-lime-400 text-black px-6 py-4 w-full border-4 border-black font-black uppercase flex items-center justify-center gap-3 disabled:opacity-50">
+                    <Printer size={20}/> 
+                    {isBatchGenerating ? "PROCESSANDO..." : "GERAR LOTE DE PROVAS"}
+                  </button>
+              </div>
+
+              {/* Status do Processamento em Lote */}
+              {isBatchGenerating && (
+                <div className="bg-black text-lime-400 p-4 border-4 border-lime-400 font-mono text-sm uppercase animate-pulse">
+                  A IA ESTÁ LENDO OS PROJETOS... {batchProgress}
+                </div>
+              )}
 
               <div className="bg-white border-4 border-black shadow-[8px_8px_0px_black]">
                 <div className="bg-yellow-400 p-4 border-b-4 border-black"><h3 className="text-xl font-black uppercase">Mapeamento de Grupos</h3></div>
@@ -467,7 +599,7 @@ export default function GCLabPro() {
   }
 
   // =========================================================================
-  // INTERFACE GAMIFICADA (ALUNO E RELATÓRIO DO PROFESSOR)
+  // INTERFACE ALUNO E ÁREA DE CORREÇÃO (UNITÁRIA) DO PROFESSOR
   // =========================================================================
   return (
     <div className="min-h-screen bg-pink-500 p-4 md:p-10 font-sans print:bg-white print:p-0">
@@ -673,20 +805,19 @@ export default function GCLabPro() {
                     )}
                   </div>
 
-                  {/* BLOCO 2: GERADOR DE PROVA OFICIAL */}
+                  {/* BLOCO 2: GERADOR DE PROVA OFICIAL UNITÁRIA */}
                   <div className="bg-orange-300 border-4 border-black p-6 shadow-[4px_4px_0px_black]">
-                    <h4 className="font-black uppercase text-xl mb-2 flex items-center gap-2"><FileText size={24}/> Gerador de Prova Oficial</h4>
-                    <p className="text-sm font-bold bg-white p-2 border-2 border-black mb-6">Gera 6 questões (3 de GC + 3 específicas do projeto) personalizadas para impressão.</p>
+                    <h4 className="font-black uppercase text-xl mb-2 flex items-center gap-2"><FileText size={24}/> Prova Desta Equipe</h4>
+                    <p className="text-sm font-bold bg-white p-2 border-2 border-black mb-6">Gere ou visualize as provas individualizadas para os membros deste grupo.</p>
                     
-                    {!formData.provaProfessorIA ? (
+                    {(!formData.provaProfessorIA || !formData.provaProfessorIA.includes("###GABARITO###")) ? (
                       <button onClick={gerarProvaDoGrupo} disabled={isProvaWait} className={`${btnBrutal} bg-white w-full hover:bg-orange-100`}>
                         {isProvaWait ? "MONTANDO QUESTÕES..." : "GERAR PROVA DA EQUIPE (IA)"}
                       </button>
                     ) : (
                       <div className="space-y-6">
-                        {/* Seletor de Personalização */}
                         <div className="bg-white p-4 border-4 border-black flex items-center gap-4">
-                          <label className="font-black uppercase text-sm">Personalizar p/ Aluno:</label>
+                          <label className="font-black uppercase text-sm">Ver Prova do Aluno:</label>
                           <select 
                             value={alunoSelecionadoProva} 
                             onChange={(e) => setAlunoSelecionadoProva(e.target.value)} 
@@ -696,17 +827,23 @@ export default function GCLabPro() {
                           </select>
                         </div>
 
-                        {/* Prova Renderizada com nome substituído */}
+                        {/* Prova Renderizada (Sem o Gabarito) */}
                         <div className="bg-white p-6 border-4 border-black text-sm whitespace-pre-wrap leading-relaxed font-serif shadow-[inset_0_0_10px_rgba(0,0,0,0.1)]">
-                          {formData.provaProfessorIA.replace(/\[NOME_DO_ALUNO\]/g, alunoSelecionadoProva)}
+                          {formData.provaProfessorIA.split("###GABARITO###")[0].replace(/\[NOME_DO_ALUNO\]/g, alunoSelecionadoProva)}
+                        </div>
+                        
+                        {/* Exibe o Gabarito Mestre Oculto */}
+                        <div className="bg-black text-white p-4 border-4 border-gray-600 text-sm whitespace-pre-wrap font-serif">
+                          <p className="text-lime-400 font-black mb-2">GABARITO DESTE GRUPO:</p>
+                          {formData.provaProfessorIA.split("###GABARITO###")[1]}
                         </div>
 
                         <div className="flex flex-wrap justify-between items-center gap-4">
                           <button onClick={() => {
-                            const provaTexto = formData.provaProfessorIA.replace(/\[NOME_DO_ALUNO\]/g, alunoSelecionadoProva);
+                            const provaTexto = formData.provaProfessorIA.split("###GABARITO###")[0].replace(/\[NOME_DO_ALUNO\]/g, alunoSelecionadoProva);
                             navigator.clipboard.writeText(provaTexto).then(() => alert("Prova copiada! Cole no Word."));
                           }} className={`${btnBrutal} bg-black text-white`}>
-                            📋 Copiar Prova
+                            📋 Copiar Esta Prova
                           </button>
                           <button onClick={gerarProvaDoGrupo} disabled={isProvaWait} className="text-xs font-black uppercase underline hover:text-black">
                             ↻ Gerar Novas Questões
