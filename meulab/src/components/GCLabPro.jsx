@@ -208,7 +208,7 @@ export default function GCLabPro() {
     setIsIAProfWait(false);
   };
 
-  // GERADOR FOCADO POR GRUPO (BLINDADO E DETALHADO)
+  // GERADOR ALTERADO: ABORDAGEM TEÓRICA DIRECIONADA E FOCO TOTAL NO PROJETO DO GRUPO
   const gerarProvaDoGrupoFoco = async (projeto) => {
     setIsProvaWait(true);
     const prompt = `Você é o Professor Gerson Braz. Sua missão é gerar uma avaliação acadêmica oficial e rigorosa para a disciplina de Gestão do Conhecimento no curso de Sistemas de Informação da Uniara. É REQUISITO OBRIGATÓRIO seguir exatamente a estrutura de 6 questões abaixo.
@@ -220,14 +220,19 @@ export default function GCLabPro() {
     CURSO: Sistemas de Informação
     DISCIPLINA: Gestão do Conhecimento
     PROFESSOR: Gerson Braz
+    GRUPO: ${projeto.nomeGrupo || 'Sem Nome'}
     ALUNO(A): [NOME_DO_ALUNO]
-    GRUPO MONITORADO: ${projeto.nomeGrupo || 'Sem Nome'}
 
-    2. QUESTÕES TEÓRICAS DE GESTÃO DO CONHECIMENTO (Questões 1, 2 e 3):
-    Crie exatamente 3 questões de múltipla escolha (A, B, C, D) focadas em conceitos teóricos puros da nossa disciplina (ex: conhecimento tácito vs explícito, espiral de Nonaka e Takeuchi, socialização, externalização, silos de informação).
+    2. QUESTÕES TEÓRICAS DIRECIONADAS AO ESCOPO (Questões 1, 2 e 3):
+    Crie exatamente 3 questões de múltipla escolha (A, B, C, D) focadas em conceitos teóricos puros de Gestão do Conhecimento. 
+    ATENÇÃO: Estas questões NÃO devem ser genéricas. Elas devem abordar os fundamentos científicos e teóricos do problema que ESSE grupo investigou.
+    - Se o projeto foca em problemas de Pessoas (Ex: Heróis do Conhecimento, retenção), as questões devem cobrar teorias de Conhecimento Tácito, Socialização ou Capital Intelectual.
+    - Se o projeto foca em Processos (Ex: Falta de manuais, onboarding informal), cobre teorias de Externalização (Modelo SECI) ou Ativos de Conhecimento Explícito.
+    - Se foca em Tecnologia (Ex: Silos no WhatsApp, planilhas), cobre teorias de Sistemas de Memória Organizacional, Taxonomia ou Arquitetura de Informação.
+    Analise os dados reais do grupo abaixo para escolher os 3 temas teóricos correspondentes.
 
     3. QUESTÕES PRÁTICAS AUDITORIA DO PROJETO (Questões 4, 5 e 6):
-    Crie exatamente 3 questões de múltipla escolha (A, B, C, D) baseadas estritamente nos dados reais que este grupo preencheu no laboratório para pegar alunos caronas que não participaram:
+    Crie exatamente 3 questões de múltipla escolha (A, B, C, D) de auditoria situacional, baseadas estritamente nos dados que o grupo preencheu no laboratório para pegar alunos caronas que não participaram:
     - Empresa alvo do grupo: ${projeto.empresa}
     - Problema estratégico mapeado: ${projeto.gapPrincipal}
     - Ferramenta tecnológica escolhida (Fase 2): ${projeto.f2Ferramenta}
@@ -245,10 +250,8 @@ export default function GCLabPro() {
       const data = await response.json();
       const textoIA = data.candidates[0].content.parts[0].text;
       
-      // Atualiza o banco de dados
       await updateDoc(doc(db, "projetos_gc", projeto.id), { provaProfessorIA: textoIA });
       
-      // Atualiza os estados locais da listagem e do modal ativo
       const projetoAtualizado = { ...projeto, provaProfessorIA: textoIA };
       setGrupoExameFoco(projetoAtualizado);
       setProjetosFiltrados(projetosFiltrados.map(p => p.id === projeto.id ? projetoAtualizado : p));
@@ -401,7 +404,6 @@ export default function GCLabPro() {
               </div>
             </div>
           ) : (
-            /* VISÃO B: DENTRO DE UMA TURMA */
             <div className="space-y-6">
               
               <button onClick={() => setAtividadeSelecionada(null)} className={`${btnBrutal} bg-white inline-flex`}>
@@ -432,10 +434,8 @@ export default function GCLabPro() {
                           <p className="text-[10px] font-mono text-gray-400 mt-1">Token: {p.id}</p>
                         </div>
 
-                        {/* Ações Diretas na Linha do Dashboard */}
                         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
                           
-                          {/* BOTÃO DA CENTRAL DE PROVA DO GRUPO */}
                           <button 
                             onClick={() => {
                               setGrupoExameFoco(p);
@@ -443,7 +443,7 @@ export default function GCLabPro() {
                             }} 
                             className={`${btnBrutal} py-2 px-4 ${temProva ? 'bg-orange-400 text-black' : 'bg-white text-gray-500'}`}
                           >
-                            <FileText size={16}/> {temProva ? "Ver Prova" : "Criar Prova"}
+                            <FileText size={16}/> {temProva ? "Gerenciar Provas" : "Criar Prova"}
                           </button>
 
                           <div className="flex items-center gap-2 bg-white p-1.5 border-4 border-black">
@@ -463,42 +463,38 @@ export default function GCLabPro() {
           )}
         </div>
 
-        {/* =========================================================================
-            MODAL/BOX DA CENTRAL DE PROVAS DO GRUPO (BRUTALIST INLINE)
-            ========================================================================= */}
+        {/* MODAL DA CENTRAL DE PROVAS DO GRUPO */}
         {grupoExameFoco && (
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 overflow-y-auto">
             <div className="bg-white border-8 border-black p-6 w-full max-w-3xl shadow-[12px_12px_0px_black] space-y-6 relative max-h-[90vh] overflow-y-auto">
                
-               <button onClick={() => setGrupoExameFoco(null)} className="absolute top-4 right-4 border-4 border-black p-1 bg-red-500 text-white font-black">
+               <button onClick={() => setGrupoExameFoco(null)} className="absolute top-4 right-4 border-4 border-black p-1 bg-red-500 text-white font-black hover:bg-red-600">
                  <X size={20}/>
                </button>
 
                <div className="bg-orange-400 p-4 border-4 border-black shadow-[4px_4px_0px_black]">
                  <span className="bg-black text-white text-xs font-black px-2 py-0.5 uppercase">Central do Professor</span>
-                 <h3 className="text-2xl font-black uppercase text-black mt-2">Configurador de Prova: {grupoExameFoco.nomeGrupo}</h3>
-                 <p className="text-xs font-bold text-black mt-1">Empresa Alvo: {grupoExameFoco.empresa} | Alunos: {grupoExameFoco.alunos?.join(", ")}</p>
+                 <h3 className="text-2xl font-black uppercase text-black mt-2">Provas: {grupoExameFoco.nomeGrupo}</h3>
+                 <p className="text-xs font-bold text-black mt-1">Empresa: {grupoExameFoco.empresa} | Alunos ({grupoExameFoco.alunos?.length}): {grupoExameFoco.alunos?.join(", ")}</p>
                </div>
 
                {(!grupoExameFoco.provaProfessorIA || !grupoExameFoco.provaProfessorIA.includes("###GABARITO###")) ? (
-                 /* Cenário A: Grupo não tem prova estruturada */
                  <div className="space-y-4 py-4">
                    <p className="text-sm font-bold bg-yellow-100 p-3 border-2 border-black">Este grupo ainda não possui uma avaliação construída pelo robô. Clique no gatilho abaixo para mapear as 6 questões oficiais.</p>
                    <button 
-                     onClick={() => generarProvaDoGrupoFoco(grupoExameFoco)} 
+                     onClick={() => gerarProvaDoGrupoFoco(grupoExameFoco)} 
                      disabled={isProvaWait} 
                      className={`${btnBrutal} bg-black text-white w-full py-4`}
                    >
-                     {isProvaWait ? "CONSTRUINDO QUESTIONÁRIO (6 QUESTÕES)..." : "🤖 GERAR PROVA INDIVIDUAL DESTE GRUPO"}
+                     {isProvaWait ? "CONSTRUINDO QUESTIONÁRIO SOB MEDIDA (6 QUESTÕES)..." : "🤖 GERAR PROVA DIRECIONADA DESTE GRUPO"}
                    </button>
                  </div>
                ) : (
-                 /* Cenário B: Prova gerada, pronta para personalizar/copiar */
                  <div className="space-y-4">
                     
-                    {/* Seletor de Personalização de Nome */}
+                    {/* Visualização de Prova Unitária */}
                     <div className="bg-yellow-200 p-4 border-4 border-black flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-[4px_4px_0px_black]">
-                      <label className="font-black uppercase text-sm whitespace-nowrap">Personalizar Folha do Aluno:</label>
+                      <label className="font-black uppercase text-sm whitespace-nowrap">Visualizar Folha do Aluno:</label>
                       <select 
                         value={alunoSelecionadoProva} 
                         onChange={(e) => setAlunoSelecionadoProva(e.target.value)} 
@@ -510,37 +506,53 @@ export default function GCLabPro() {
                       </select>
                     </div>
 
-                    {/* Bloco de Visualização Oficial da Prova */}
                     <div className="bg-white p-6 border-4 border-black font-serif text-sm leading-relaxed max-h-64 overflow-y-auto select-all shadow-[inset_0_0_8px_black]">
                        {grupoExameFoco.provaProfessorIA.split("###GABARITO###")[0].replace(/\[NOME_DO_ALUNO\]/g, alunoSelecionadoProva)}
                     </div>
 
-                    {/* Bloco de Gabarito Técnico Secreto */}
                     <div className="bg-black text-white p-4 border-4 border-gray-600 font-mono text-xs">
                       <p className="text-lime-400 font-black uppercase mb-1">✓ CHAVE DE RESPOSTAS (GABARITO MESTRE):</p>
                       {grupoExameFoco.provaProfessorIA.split("###GABARITO###")[1] || "Gabarito não estruturado."}
                     </div>
 
-                    {/* Ações da Prova */}
-                    <div className="flex flex-wrap gap-4 pt-2">
-                      <button 
-                        onClick={() => {
-                          const provaPronta = grupoExameFoco.provaProfessorIA.split("###GABARITO###")[0].replace(/\[NOME_DO_ALUNO\]/g, alunoSelecionadoProva);
-                          navigator.clipboard.writeText(provaPronta).then(() => alert(`Prova de ${alunoSelecionadoProva} copiada para a área de transferência!`));
-                        }} 
-                        className={`${btnBrutal} bg-lime-400 flex-1`}
-                      >
-                        📋 Copiar Prova de {alunoSelecionadoProva?.split(" ")[0]}
-                      </button>
-                      <button 
-                        onClick={() => generarProvaDoGrupoFoco(grupoExameFoco)} 
-                        disabled={isProvaWait}
-                        className="text-xs font-black uppercase underline hover:text-red-600 ml-auto"
-                      >
-                        {isProvaWait ? "REGERANDO..." : "↻ Refazer Questões"}
-                      </button>
-                    </div>
+                    {/* AÇÕES DE CÓPIA */}
+                    <div className="flex flex-col gap-4 pt-2">
+                      
+                      <div className="flex flex-wrap gap-4 items-center">
+                        <button 
+                          onClick={() => {
+                            const provaPronta = grupoExameFoco.provaProfessorIA.split("###GABARITO###")[0].replace(/\[NOME_DO_ALUNO\]/g, alunoSelecionadoProva);
+                            navigator.clipboard.writeText(provaPronta).then(() => alert(`Prova unitária de ${alunoSelecionadoProva} copiada!`));
+                          }} 
+                          className={`${btnBrutal} bg-lime-400 flex-1`}
+                        >
+                          📋 Copiar Somente: {alunoSelecionadoProva?.split(" ")[0]}
+                        </button>
+                        
+                        <button 
+                          onClick={() => gerarProvaDoGrupoFoco(grupoExameFoco)} 
+                          disabled={isProvaWait}
+                          className="text-xs font-black uppercase underline hover:text-red-600 ml-auto"
+                        >
+                          {isProvaWait ? "REGERANDO..." : "↻ Refazer Questões"}
+                        </button>
+                      </div>
 
+                      {/* COPIAR TODAS AS PROVAS DO GRUPO */}
+                      <button 
+                          onClick={() => {
+                            const provaBase = grupoExameFoco.provaProfessorIA.split("###GABARITO###")[0];
+                            let provasCompletas = grupoExameFoco.alunos.map(aluno => 
+                              provaBase.replace(/\[NOME_DO_ALUNO\]/g, aluno)
+                            ).join("\n\n========================================================================================\n\n");
+                            navigator.clipboard.writeText(provasCompletas).then(() => alert(`As provas de TODOS os ${grupoExameFoco.alunos.length} alunos deste grupo foram copiadas!\n\nAgora é só abrir o Word e colar.`));
+                          }} 
+                          className={`${btnBrutal} bg-cyan-400 w-full py-4 text-sm`}
+                        >
+                          📚 Copiar Provas de TODOS os Alunos (Lote do Grupo)
+                      </button>
+
+                    </div>
                  </div>
                )}
             </div>
@@ -591,7 +603,7 @@ export default function GCLabPro() {
                   </select>
                   <button onClick={() => {
                     const val = document.getElementById('codAtivInput').value;
-                    if(val) setFormData(prev => ({ ...prev, atividadeId: val }));
+                    if(val) setFormData(prev => ({ ...prev, activityId: val }));
                   }} className={`${btnBrutal} w-full bg-black text-white`}>Vincular</button>
                 </div>
               </div>
