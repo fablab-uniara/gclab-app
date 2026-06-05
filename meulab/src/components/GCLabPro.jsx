@@ -21,9 +21,10 @@ export default function GCLabPro() {
   const [projetosRemotos, setProjetosRemotos] = useState([]);
   const [projetosFiltrados, setProjetosFiltrados] = useState([]);
   
-  // Estado para gerenciar a prova do grupo selecionado no Dashboard
+  // Estados de Gerenciamento de Provas
   const [grupoExameFoco, setGrupoExameFoco] = useState(null);
   const [alunoSelecionadoProva, setAlunoSelecionadoProva] = useState("");
+  const [showGabaritosModal, setShowGabaritosModal] = useState(false); // NOVO: Modal de Gabaritos
 
   // Formulário para criar atividade
   const [novaAtivNome, setNovaAtivNome] = useState("");
@@ -208,7 +209,6 @@ export default function GCLabPro() {
     setIsIAProfWait(false);
   };
 
-  // GERADOR ALTERADO: ABORDAGEM TEÓRICA DIRECIONADA E FOCO TOTAL NO PROJETO DO GRUPO
   const gerarProvaDoGrupoFoco = async (projeto) => {
     setIsProvaWait(true);
     const prompt = `Você é o Professor Gerson Braz. Sua missão é gerar uma avaliação acadêmica oficial e rigorosa para a disciplina de Gestão do Conhecimento no curso de Sistemas de Informação da Uniara. É REQUISITO OBRIGATÓRIO seguir exatamente a estrutura de 6 questões abaixo.
@@ -322,7 +322,6 @@ export default function GCLabPro() {
             <div className="space-y-8">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
-                {/* Coluna Esquerda: Nova Atividade */}
                 <div className="lg:col-span-1">
                   <div className="bg-white p-6 border-4 border-black shadow-[8px_8px_0px_black]">
                     <h3 className="text-xl font-black uppercase mb-4 border-b-4 border-black pb-2 flex items-center gap-2">
@@ -348,7 +347,6 @@ export default function GCLabPro() {
                   </div>
                 </div>
 
-                {/* Coluna Direita: Atividades */}
                 <div className="lg:col-span-2 space-y-4">
                   <h3 className="text-2xl font-black uppercase bg-black text-white p-3 inline-block shadow-[4px_4px_0px_white]">Turmas Ativas</h3>
                   {atividades.length === 0 && <p className="text-sm font-bold bg-white p-4 border-4 border-black">Nenhuma turma configurada.</p>}
@@ -373,7 +371,6 @@ export default function GCLabPro() {
                 </div>
               </div>
 
-              {/* Seção Projetos Antigos */}
               <div className="bg-orange-400 border-4 border-black p-6 shadow-[8px_8px_0px_black]">
                 <h3 className="text-xl font-black uppercase text-black mb-2 flex items-center gap-2"><History size={24}/> Projetos Não Vinculados</h3>
                 
@@ -416,7 +413,17 @@ export default function GCLabPro() {
               </div>
 
               <div className="bg-white border-4 border-black shadow-[8px_8px_0px_black]">
-                <div className="bg-yellow-400 p-4 border-b-4 border-black"><h3 className="text-xl font-black uppercase">Grupos da Turma ({projetosFiltrados.length})</h3></div>
+                
+                {/* CABEÇALHO DOS GRUPOS E BOTÃO DE GABARITO DA TURMA */}
+                <div className="bg-yellow-400 p-4 border-b-4 border-black flex flex-col md:flex-row justify-between items-center gap-4">
+                  <h3 className="text-xl font-black uppercase">Grupos da Turma ({projetosFiltrados.length})</h3>
+                  <button 
+                    onClick={() => setShowGabaritosModal(true)} 
+                    className={`${btnBrutal} bg-black text-white py-2`}
+                  >
+                    📋 Extrair Gabaritos da Turma
+                  </button>
+                </div>
                 
                 <div className="p-6 space-y-4">
                   {projetosFiltrados.length === 0 && <p className="font-bold text-center py-6">Nenhum grupo ativo.</p>}
@@ -463,7 +470,53 @@ export default function GCLabPro() {
           )}
         </div>
 
-        {/* MODAL DA CENTRAL DE PROVAS DO GRUPO */}
+        {/* MODAL CENTRAL DE GABARITOS DA TURMA (NOVO) */}
+        {showGabaritosModal && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <div className="bg-white border-8 border-black p-6 w-full max-w-3xl shadow-[12px_12px_0px_black] space-y-6 relative max-h-[90vh] overflow-y-auto">
+               
+               <button onClick={() => setShowGabaritosModal(false)} className="absolute top-4 right-4 border-4 border-black p-1 bg-red-500 text-white font-black hover:bg-red-600">
+                 <X size={20}/>
+               </button>
+
+               <div className="border-b-4 border-black pb-4 mb-4">
+                 <span className="bg-black text-white text-xs font-black px-2 py-0.5 uppercase">Administrativo Docente</span>
+                 <h3 className="text-2xl font-black uppercase text-black mt-2">Chave de Correção: {atividadeSelecionada?.turma}</h3>
+                 <p className="text-xs font-bold text-gray-500 mt-1">Extração automática dos gabaritos de todos os grupos com prova gerada.</p>
+               </div>
+
+               <div className="space-y-4 font-mono text-sm max-h-[50vh] overflow-y-auto p-2">
+                 {projetosFiltrados.filter(p => p.provaProfessorIA && p.provaProfessorIA.includes("###GABARITO###")).length === 0 ? (
+                   <p className="font-bold bg-yellow-100 p-4 border-2 border-black">Nenhuma prova foi gerada para os grupos desta turma ainda.</p>
+                 ) : (
+                   projetosFiltrados.filter(p => p.provaProfessorIA && p.provaProfessorIA.includes("###GABARITO###")).map(p => (
+                     <div key={p.id} className="bg-gray-100 p-4 border-4 border-black">
+                       <p className="font-black uppercase mb-2 border-b-2 border-gray-300 pb-1">GRUPO: {p.nomeGrupo} <span className="text-xs font-normal text-gray-500">({p.empresa})</span></p>
+                       <div className="whitespace-pre-wrap font-bold text-green-700">{p.provaProfessorIA.split("###GABARITO###")[1].trim()}</div>
+                     </div>
+                   ))
+                 )}
+               </div>
+
+               <button 
+                  onClick={() => {
+                    const gruposComGabarito = projetosFiltrados.filter(p => p.provaProfessorIA && p.provaProfessorIA.includes("###GABARITO###"));
+                    if(gruposComGabarito.length === 0) {
+                      alert("Gere as provas dos grupos primeiro!");
+                      return;
+                    }
+                    const compendium = gruposComGabarito.map(p => `GRUPO: ${p.nomeGrupo} (${p.empresa})\n${p.provaProfessorIA.split("###GABARITO###")[1].trim()}`).join('\n\n------------------------\n\n');
+                    navigator.clipboard.writeText(`GABARITOS OFICIAIS - TURMA: ${atividadeSelecionada.turma}\n\n${compendium}`).then(() => alert("Todos os gabaritos copiados com sucesso!"));
+                  }} 
+                  className={`${btnBrutal} bg-lime-400 w-full py-4`}
+                >
+                  📋 Copiar Todos os Gabaritos da Turma
+               </button>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL DA CENTRAL DE PROVAS UNITÁRIAS DO GRUPO */}
         {grupoExameFoco && (
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 overflow-y-auto">
             <div className="bg-white border-8 border-black p-6 w-full max-w-3xl shadow-[12px_12px_0px_black] space-y-6 relative max-h-[90vh] overflow-y-auto">
@@ -492,7 +545,6 @@ export default function GCLabPro() {
                ) : (
                  <div className="space-y-4">
                     
-                    {/* Visualização de Prova Unitária */}
                     <div className="bg-yellow-200 p-4 border-4 border-black flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-[4px_4px_0px_black]">
                       <label className="font-black uppercase text-sm whitespace-nowrap">Visualizar Folha do Aluno:</label>
                       <select 
@@ -515,7 +567,6 @@ export default function GCLabPro() {
                       {grupoExameFoco.provaProfessorIA.split("###GABARITO###")[1] || "Gabarito não estruturado."}
                     </div>
 
-                    {/* AÇÕES DE CÓPIA */}
                     <div className="flex flex-col gap-4 pt-2">
                       
                       <div className="flex flex-wrap gap-4 items-center">
@@ -538,7 +589,6 @@ export default function GCLabPro() {
                         </button>
                       </div>
 
-                      {/* COPIAR TODAS AS PROVAS DO GRUPO */}
                       <button 
                           onClick={() => {
                             const provaBase = grupoExameFoco.provaProfessorIA.split("###GABARITO###")[0];
@@ -603,7 +653,7 @@ export default function GCLabPro() {
                   </select>
                   <button onClick={() => {
                     const val = document.getElementById('codAtivInput').value;
-                    if(val) setFormData(prev => ({ ...prev, activityId: val }));
+                    if(val) setFormData(prev => ({ ...prev, atividadeId: val }));
                   }} className={`${btnBrutal} w-full bg-black text-white`}>Vincular</button>
                 </div>
               </div>
