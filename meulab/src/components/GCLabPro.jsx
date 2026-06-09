@@ -21,10 +21,11 @@ export default function GCLabPro() {
   const [projetosRemotos, setProjetosRemotos] = useState([]);
   const [projetosFiltrados, setProjetosFiltrados] = useState([]);
   
-  // ESTADOS DE VISUALIZAÇÃO E AVALIAÇÃO
+  // ESTADOS DE VISUALIZAÇÃO E MODAIS
   const [projetoEmVisualizacao, setProjetoVisualizacao] = useState(null);
   const [alunoSelecionadoProva, setAlunoSelecionadoProva] = useState("");
   const [showGabaritosModal, setShowGabaritosModal] = useState(false);
+  const [showNotasModal, setShowNotasModal] = useState(false); // NOVO: Modal de Notas
 
   // Formulário para criar atividade com PESOS
   const [novaAtivNome, setNovaAtivNome] = useState("");
@@ -200,28 +201,22 @@ export default function GCLabPro() {
     setIsIAWait(false);
   };
 
-  // A MÁGICA: AUTO-AVALIAÇÃO COM NOTA AUTOMÁTICA (AGORA COM MAX 4 PARA ANTIGOS)
   const autoAvaliarAtribuirNota = async (projeto) => {
     setIsIAProfWait(true);
-    
     const ativ = atividades.find(a => a.id === projeto.atividadeId);
-    
-    // ALTERAÇÃO CIRÚRGICA: O fallback (reserva) passou de 10 para 4.
     const notaMax = ativ?.notaMaxima || 4; 
-    
     const pesos = ativ?.pesos || { diagnostico: 30, roadmap: 40, filtro: 30 };
 
-    const prompt = `Você é um sistema de avaliação automática e rigorosa. Avalie o projeto deste grupo de Gestão do Conhecimento considerando os seguintes pesos configurados pelo professor:
-    - Diagnóstico do Problema (Peso ${pesos.diagnostico}%): "${projeto.gapPrincipal}"
-    - Roadmap e Solução (Peso ${pesos.roadmap}%): "${projeto.f1AcaoEngajamento}" e "${projeto.f2Ferramenta}"
-    - Defesa / Filtro de Realidade (Peso ${pesos.filtro}%): Orçamento (${projeto.justOrcamento}) e Tempo (${projeto.justTempo}).
+    const prompt = `Você é um sistema de avaliação automática e rigorosa. Avalie o projeto deste grupo considerando os pesos:
+    - Diagnóstico (${pesos.diagnostico}%): "${projeto.gapPrincipal}"
+    - Roadmap (${pesos.roadmap}%): "${projeto.f1AcaoEngajamento}" e "${projeto.f2Ferramenta}"
+    - Filtro de Realidade (${pesos.filtro}%): Orçamento (${projeto.justOrcamento}) e Tempo (${projeto.justTempo}).
 
-    A Nota Máxima possível desta atividade é ${notaMax}. Seja justo, porém crítico. 
+    Nota Máxima: ${notaMax}. 
 
     FORMA DE RESPOSTA OBRIGATÓRIA:
-    Escreva um breve dossiê (2 parágrafos) justificando os pontos fortes e os descontos de nota.
-    No final da sua resposta, pule uma linha e escreva EXATAMENTE o seguinte formato para eu extrair a nota via sistema:
-    NOTA_FINAL_SISTEMA: [Apenas o número final calculado com até uma casa decimal, usando ponto. Ex: 3.5]`;
+    Escreva o dossiê. Pule uma linha e escreva EXATAMENTE:
+    NOTA_FINAL_SISTEMA: [Número com ponto. Ex: 3.5]`;
 
     try {
       const response = await fetch('/api/validar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
@@ -238,18 +233,12 @@ export default function GCLabPro() {
         notaFinal: notaExtraida 
       });
 
-      const projetoAtualizado = { 
-        ...projeto, 
-        avaliacaoProfessorIA: textoIA.split("NOTA_FINAL_SISTEMA:")[0].trim(), 
-        notaFinal: notaExtraida 
-      };
-      
+      const projetoAtualizado = { ...projeto, avaliacaoProfessorIA: textoIA.split("NOTA_FINAL_SISTEMA:")[0].trim(), notaFinal: notaExtraida };
       setProjetoVisualizacao(projetoAtualizado);
       setProjetosFiltrados(projetosFiltrados.map(p => p.id === projeto.id ? projetoAtualizado : p));
       
-      alert(`Auto-Avaliação Concluída! Nota Atribuída: ${notaExtraida}`);
-
-    } catch (e) { alert("Erro de resposta da IA ao avaliar."); }
+      alert(`Auto-Avaliação Concluída! Nota: ${notaExtraida}`);
+    } catch (e) { alert("Erro ao avaliar."); }
     setIsIAProfWait(false);
   };
 
@@ -320,6 +309,23 @@ export default function GCLabPro() {
 
   const projetosOrfaos = projetosRemotos.filter(p => !p.atividadeId || p.atividadeId === "");
 
+  // GERADOR DO RELATÓRIO DE NOTAS (FORMATO TSV PARA EXCEL)
+  const compilarNotasParaExcel = () => {
+    let relatorio = "ALUNO\tGRUPO\tNOTA\n"; // \t garante que cole em colunas separadas no Excel
+    projetosFiltrados.forEach(p => {
+      const nota = p.notaFinal || "0.0";
+      const grupo = p.nomeGrupo || "Sem Nome";
+      if (p.alunos && p.alunos.length > 0) {
+        p.alunos.forEach(aluno => {
+          relatorio += `${aluno}\t${grupo}\t${nota}\n`;
+        });
+      } else {
+        relatorio += `(Sem alunos cadastrados)\t${grupo}\t${nota}\n`;
+      }
+    });
+    return relatorio;
+  };
+
   // =========================================================================
   // RENDERIZAÇÃO DO DASHBOARD DO PROFESSOR
   // =========================================================================
@@ -327,7 +333,6 @@ export default function GCLabPro() {
     return (
       <div className="min-h-screen bg-pink-500 p-4 md:p-8 font-sans">
         
-        {/* Navbar Admin */}
         <div className="max-w-7xl mx-auto bg-yellow-400 border-4 border-black p-4 mb-8 shadow-[8px_8px_0px_black] flex justify-between items-center">
            <div className="flex items-center gap-4">
               <Rocket size={32} className="text-black" />
@@ -346,7 +351,6 @@ export default function GCLabPro() {
             <div className="space-y-8">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
-                {/* Coluna Esquerda: Nova Atividade Parametrizada */}
                 <div className="lg:col-span-1">
                   <div className="bg-white p-6 border-4 border-black shadow-[8px_8px_0px_black]">
                     <h3 className="text-xl font-black uppercase mb-4 border-b-4 border-black pb-2 flex items-center gap-2">
@@ -401,7 +405,6 @@ export default function GCLabPro() {
                 <span className="bg-white text-black font-black uppercase px-3 py-1 border-2 border-black text-xs">{atividadeSelecionada.turma}</span>
                 <h2 className="text-3xl font-black uppercase mt-4">{atividadeSelecionada.nome}</h2>
                 <div className="flex gap-4 mt-6">
-                  {/* AJUSTADO: Mostra o limite 4 se não houver nota máxima cadastrada */}
                   <div className="bg-black p-3 border-2 border-white"><p className="text-xs font-bold text-gray-400">Nota Máx</p><p className="text-xl font-black">{atividadeSelecionada.notaMaxima || "4"}</p></div>
                   <div className="bg-black p-3 border-2 border-white"><p className="text-xs font-bold text-gray-400">Grupos</p><p className="text-xl font-black">{projetosFiltrados.length}</p></div>
                 </div>
@@ -409,21 +412,23 @@ export default function GCLabPro() {
 
               <div className="bg-white border-4 border-black shadow-[8px_8px_0px_black]">
                 
-                {/* CABEÇALHO DA LISTAGEM DOS GRUPOS E BOTÃO DE GABARITO DA TURMA */}
-                <div className="bg-yellow-400 p-4 border-b-4 border-black flex flex-col md:flex-row justify-between items-center gap-4">
+                {/* CABEÇALHO COM OS BOTÕES DE EXTRAÇÃO (NOTAS E GABARITOS) */}
+                <div className="bg-yellow-400 p-4 border-b-4 border-black flex flex-col lg:flex-row justify-between items-center gap-4">
                   <h3 className="text-xl font-black uppercase">Grupos da Turma</h3>
-                  <button onClick={() => setShowGabaritosModal(true)} className={`${btnBrutal} bg-black text-white py-2`}>
-                    📋 Extrair Gabaritos da Turma
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => setShowNotasModal(true)} className={`${btnBrutal} bg-white text-black py-2`}>
+                      📊 Extrair Notas
+                    </button>
+                    <button onClick={() => setShowGabaritosModal(true)} className={`${btnBrutal} bg-black text-white py-2`}>
+                      📋 Extrair Gabaritos
+                    </button>
+                  </div>
                 </div>
 
                 <div className="p-6 space-y-4">
                   {projetosFiltrados.length === 0 && <p className="font-bold text-center py-6">Nenhum grupo ativo.</p>}
                   
                   {projetosFiltrados.map(p => {
-                    const isConcluido = p.etapaConcluida === 5;
-                    const temProva = p.provaProfessorIA && p.provaProfessorIA.includes("###GABARITO###");
-
                     return (
                       <div key={p.id} className="bg-gray-50 border-4 border-black p-5 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 hover:bg-yellow-50 transition-colors">
                         <div className="flex-1">
@@ -433,14 +438,11 @@ export default function GCLabPro() {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                          
                           <div className="flex items-center gap-2 bg-white p-1.5 border-4 border-black">
                             <span className="font-black text-xs uppercase">Nota:</span>
-                            {/* AJUSTADO: Input agora limita também ao 4 ou ao valor cadastrado */}
                             <input type="number" step="0.1" max={atividadeSelecionada.notaMaxima || 4} defaultValue={p.notaFinal || ""} onBlur={(e) => salvarNotaProfessor(p.id, e.target.value)} className="w-14 p-0.5 border-2 border-black font-black text-center bg-yellow-100 outline-none focus:bg-white" />
                           </div>
                           
-                          {/* BOTÃO ABRIR QUE ABRE O MODAL SEM SAIR DO PAINEL */}
                           <button 
                             onClick={() => {
                                setProjetoVisualizacao(p);
@@ -462,7 +464,44 @@ export default function GCLabPro() {
           )}
         </div>
 
-        {/* MODAL CENTRAL DE GABARITOS DA TURMA */}
+        {/* =========================================================================
+            MODAL 1: LISTA DE NOTAS PARA O EXCEL (NOVO)
+            ========================================================================= */}
+        {showNotasModal && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <div className="bg-white border-8 border-black p-6 w-full max-w-3xl shadow-[12px_12px_0px_black] space-y-6 relative max-h-[90vh] flex flex-col">
+               
+               <button onClick={() => setShowNotasModal(false)} className="absolute top-4 right-4 border-4 border-black p-1 bg-red-500 text-white font-black hover:bg-red-600">
+                 <X size={20}/>
+               </button>
+
+               <div className="border-b-4 border-black pb-4 mb-2">
+                 <span className="bg-white border-2 border-black text-black text-xs font-black px-2 py-0.5 uppercase">Fechamento de Diário</span>
+                 <h3 className="text-2xl font-black uppercase text-black mt-2">Relatório de Notas: {atividadeSelecionada?.turma}</h3>
+                 <p className="text-xs font-bold text-gray-500 mt-1">Lista consolidada. Copie e cole no Excel (as colunas se alinham sozinhas).</p>
+               </div>
+
+               <div className="flex-1 overflow-y-auto border-4 border-black bg-gray-50 p-4">
+                 <textarea 
+                   readOnly 
+                   value={compilarNotasParaExcel()} 
+                   className="w-full h-64 bg-transparent outline-none font-mono text-sm whitespace-pre"
+                 />
+               </div>
+
+               <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(compilarNotasParaExcel()).then(() => alert("Notas copiadas! Abra o Excel ou Google Sheets e dê Ctrl+V."));
+                  }} 
+                  className={`${btnBrutal} bg-lime-400 w-full py-4 shrink-0`}
+                >
+                  📋 Copiar Tabela de Notas p/ Excel
+               </button>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 2: GABARITOS DA TURMA */}
         {showGabaritosModal && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 overflow-y-auto">
             <div className="bg-white border-8 border-black p-6 w-full max-w-3xl shadow-[12px_12px_0px_black] space-y-6 relative max-h-[90vh] overflow-y-auto">
@@ -474,7 +513,6 @@ export default function GCLabPro() {
                <div className="border-b-4 border-black pb-4 mb-4">
                  <span className="bg-black text-white text-xs font-black px-2 py-0.5 uppercase">Administrativo Docente</span>
                  <h3 className="text-2xl font-black uppercase text-black mt-2">Chave de Correção: {atividadeSelecionada?.turma}</h3>
-                 <p className="text-xs font-bold text-gray-500 mt-1">Extração automática dos gabaritos de todos os grupos com prova gerada.</p>
                </div>
 
                <div className="space-y-4 font-mono text-sm max-h-[50vh] overflow-y-auto p-2">
@@ -492,13 +530,8 @@ export default function GCLabPro() {
 
                <button 
                   onClick={() => {
-                    const gruposComGabarito = projetosFiltrados.filter(p => p.provaProfessorIA && p.provaProfessorIA.includes("###GABARITO###"));
-                    if(gruposComGabarito.length === 0) {
-                      alert("Gere as provas dos grupos primeiro!");
-                      return;
-                    }
-                    const compendium = gruposComGabarito.map(p => `GRUPO: ${p.nomeGrupo} (${p.empresa})\n${p.provaProfessorIA.split("###GABARITO###")[1].trim()}`).join('\n\n------------------------\n\n');
-                    navigator.clipboard.writeText(`GABARITOS OFICIAIS - TURMA: ${atividadeSelecionada.turma}\n\n${compendium}`).then(() => alert("Todos os gabaritos copiados com sucesso!"));
+                    const compendium = projetosFiltrados.filter(p => p.provaProfessorIA && p.provaProfessorIA.includes("###GABARITO###")).map(p => `GRUPO: ${p.nomeGrupo} (${p.empresa})\n${p.provaProfessorIA.split("###GABARITO###")[1].trim()}`).join('\n\n------------------------\n\n');
+                    navigator.clipboard.writeText(`GABARITOS OFICIAIS - TURMA: ${atividadeSelecionada.turma}\n\n${compendium}`).then(() => alert("Gabaritos copiados!"));
                   }} 
                   className={`${btnBrutal} bg-lime-400 w-full py-4`}
                 >
@@ -508,9 +541,7 @@ export default function GCLabPro() {
           </div>
         )}
 
-        {/* =========================================================================
-            O GRANDE MODAL DE AVALIAÇÃO (VISUALIZAÇÃO COMPLETA DO PROJETO E PROVAS)
-            ========================================================================= */}
+        {/* MODAL 3: AVALIAÇÃO DO PROJETO E PROVAS UNITÁRIAS */}
         {projetoEmVisualizacao && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 overflow-y-auto">
             <div className="bg-white border-8 border-black p-6 w-full max-w-5xl shadow-[12px_12px_0px_black] space-y-6 relative max-h-[90vh] overflow-y-auto">
@@ -526,35 +557,21 @@ export default function GCLabPro() {
                </div>
 
                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  
-                  {/* COLUNA ESQUERDA: O RELATÓRIO DO ALUNO */}
                   <div className="space-y-6 bg-gray-50 p-6 border-4 border-black h-fit">
-                     <h3 className="font-black uppercase text-xl border-b-4 border-black pb-2">1. Diagnóstico do Grupo</h3>
+                     <h3 className="font-black uppercase text-xl border-b-4 border-black pb-2">1. Diagnóstico</h3>
                      <p className="text-sm font-bold italic bg-white p-4 border-2 border-black">"{projetoEmVisualizacao.gapPrincipal}"</p>
-                     
-                     <h3 className="font-black uppercase text-xl border-b-4 border-black pb-2 mt-6">2. Roadmap Proposto</h3>
+                     <h3 className="font-black uppercase text-xl border-b-4 border-black pb-2 mt-6">2. Roadmap</h3>
                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="bg-white p-2 border-2 border-black"><span className="font-black block">F1: Sensibilização</span>{projetoEmVisualizacao.f1AcaoEngajamento}</div>
-                        <div className="bg-white p-2 border-2 border-black"><span className="font-black block">F2: Tecnologia</span>{projetoEmVisualizacao.f2Ferramenta}</div>
-                        <div className="bg-white p-2 border-2 border-black"><span className="font-black block">F3: Piloto</span>{projetoEmVisualizacao.f3SetorPiloto}</div>
-                        <div className="bg-white p-2 border-2 border-black"><span className="font-black block">F4: Sustentação</span>{projetoEmVisualizacao.f4NovaRotina}</div>
+                        <div className="bg-white p-2 border-2 border-black"><span className="font-black block">F1: Sensib.</span>{projetoEmVisualizacao.f1AcaoEngajamento}</div>
+                        <div className="bg-white p-2 border-2 border-black"><span className="font-black block">F2: Tecnol.</span>{projetoEmVisualizacao.f2Ferramenta}</div>
                      </div>
-
-                     <h3 className="font-black uppercase text-xl border-b-4 border-black pb-2 mt-6">3. Defesa de Viabilidade</h3>
-                     <ul className="text-xs space-y-2">
-                        <li><span className="font-black">Orçamento:</span> {projetoEmVisualizacao.justOrcamento}</li>
-                        <li><span className="font-black">Tempo:</span> {projetoEmVisualizacao.justTempo}</li>
-                        <li><span className="font-black">Eficácia:</span> {projetoEmVisualizacao.justManutencao}</li>
-                     </ul>
-
-                     <h3 className="font-black uppercase text-xl border-b-4 border-black pb-2 mt-6">4. Parecer IA (Conselho)</h3>
-                     <p className="text-xs bg-black text-lime-400 p-4 font-mono">{projetoEmVisualizacao.feedbackIA || "Sem submissão ao conselho."}</p>
+                     <h3 className="font-black uppercase text-xl border-b-4 border-black pb-2 mt-6">3. Viabilidade</h3>
+                     <ul className="text-xs space-y-2"><li><span className="font-black">R$:</span> {projetoEmVisualizacao.justOrcamento}</li><li><span className="font-black">Tempo:</span> {projetoEmVisualizacao.justTempo}</li></ul>
+                     <h3 className="font-black uppercase text-xl border-b-4 border-black pb-2 mt-6">4. Parecer IA</h3>
+                     <p className="text-xs bg-black text-lime-400 p-4 font-mono">{projetoEmVisualizacao.feedbackIA || "Sem conselho."}</p>
                   </div>
 
-                  {/* COLUNA DIREITA: FERRAMENTAS DO PROFESSOR */}
                   <div className="space-y-6">
-                     
-                     {/* FERRAMENTA 1: AUTO-AVALIADOR */}
                      <div className="bg-cyan-100 border-4 border-black p-6 shadow-[4px_4px_0px_black]">
                         <div className="flex justify-between items-center mb-4 border-b-4 border-black pb-2">
                           <h4 className="font-black uppercase text-lg flex items-center gap-2"><BrainCircuit size={20}/> Auto-Avaliador</h4>
@@ -563,7 +580,7 @@ export default function GCLabPro() {
 
                         {!projetoEmVisualizacao.avaliacaoProfessorIA ? (
                            <div className="space-y-4">
-                             <p className="text-xs font-bold">A IA irá calcular a nota final baseada nos pesos configurados (Máximo de {atividadeSelecionada?.notaMaxima || 4} pontos).</p>
+                             <p className="text-xs font-bold">Máximo de {atividadeSelecionada?.notaMaxima || 4} pontos.</p>
                              <button onClick={() => autoAvaliarAtribuirNota(projetoEmVisualizacao)} disabled={isIAProfWait} className={`${btnBrutal} bg-black text-white w-full`}>
                                {isIAProfWait ? "LENDO E CALCULANDO..." : "🤖 AUTO-AVALIAR E ATRIBUIR NOTA"}
                              </button>
@@ -571,21 +588,17 @@ export default function GCLabPro() {
                         ) : (
                            <div className="space-y-4">
                              <div className="bg-white p-4 border-4 border-black text-xs font-bold leading-relaxed whitespace-pre-wrap">{projetoEmVisualizacao.avaliacaoProfessorIA}</div>
-                             
                              <div className="flex items-center gap-2">
-                               <label className="text-xs font-black uppercase">Alterar Nota Manualmente:</label>
+                               <label className="text-xs font-black uppercase">Alterar Manual:</label>
                                <input type="number" step="0.1" max={atividadeSelecionada?.notaMaxima || 4} defaultValue={projetoEmVisualizacao.notaFinal || ""} onBlur={(e) => salvarNotaProfessor(projetoEmVisualizacao.id, e.target.value)} className="w-16 p-1 border-4 border-black font-black text-center outline-none bg-yellow-100" />
                              </div>
-
                              <button onClick={() => autoAvaliarAtribuirNota(projetoEmVisualizacao)} disabled={isIAProfWait} className="text-xs font-black uppercase underline hover:text-blue-600 block">↻ Recalcular Dossiê e Nota</button>
                            </div>
                         )}
                      </div>
 
-                     {/* FERRAMENTA 2: CENTRAL DE PROVAS */}
                      <div className="bg-orange-300 border-4 border-black p-6 shadow-[4px_4px_0px_black]">
                         <h4 className="font-black uppercase text-lg mb-4 border-b-4 border-black pb-2 flex items-center gap-2"><FileText size={20}/> Gerador de Provas</h4>
-                        
                         {(!projetoEmVisualizacao.provaProfessorIA || !projetoEmVisualizacao.provaProfessorIA.includes("###GABARITO###")) ? (
                           <button onClick={() => gerarProvaDoGrupoFoco(projetoEmVisualizacao)} disabled={isProvaWait} className={`${btnBrutal} bg-white w-full`}>
                             {isProvaWait ? "MONTANDO..." : "GERAR QUESTÕES DESTE GRUPO"}
@@ -595,27 +608,24 @@ export default function GCLabPro() {
                              <select value={alunoSelecionadoProva} onChange={(e) => setAlunoSelecionadoProva(e.target.value)} className="w-full p-2 border-4 border-black font-black text-sm bg-yellow-100 outline-none">
                                {projetoEmVisualizacao.alunos?.map((a, i) => (<option key={i} value={a}>{a}</option>))}
                              </select>
-                             
-                             <div className="bg-white p-4 border-4 border-black font-serif text-xs max-h-32 overflow-y-auto shadow-[inset_0_0_8px_black]">
+                             <div className="bg-white p-4 border-4 border-black font-serif text-xs max-h-32 overflow-y-auto">
                                {projetoEmVisualizacao.provaProfessorIA.split("###GABARITO###")[0].replace(/\[NOME_DO_ALUNO\]/g, alunoSelecionadoProva)}
                              </div>
-
                              <div className="flex gap-2">
                                <button onClick={() => {
-                                 const provaPronta = projetoEmVisualizacao.provaProfessorIA.split("###GABARITO###")[0].replace(/\[NOME_DO_ALUNO\]/g, alunoSelecionadoProva);
-                                 navigator.clipboard.writeText(provaPronta).then(() => alert(`Copiado!`));
+                                 const pPronta = projetoEmVisualizacao.provaProfessorIA.split("###GABARITO###")[0].replace(/\[NOME_DO_ALUNO\]/g, alunoSelecionadoProva);
+                                 navigator.clipboard.writeText(pPronta).then(() => alert(`Copiado!`));
                                }} className={`${btnBrutal} bg-lime-400 py-2 flex-1`}>Copiar Um</button>
 
                                <button onClick={() => {
-                                 const provaBase = projetoEmVisualizacao.provaProfessorIA.split("###GABARITO###")[0];
-                                 let provasCompletas = projetoEmVisualizacao.alunos.map(aluno => provaBase.replace(/\[NOME_DO_ALUNO\]/g, aluno)).join("\n\n========================================================\n\n");
-                                 navigator.clipboard.writeText(provasCompletas).then(() => alert(`Todos copiados!`));
+                                 const pBase = projetoEmVisualizacao.provaProfessorIA.split("###GABARITO###")[0];
+                                 let pCompletas = projetoEmVisualizacao.alunos.map(a => pBase.replace(/\[NOME_DO_ALUNO\]/g, a)).join("\n\n========================================================\n\n");
+                                 navigator.clipboard.writeText(pCompletas).then(() => alert(`Todos copiados!`));
                                }} className={`${btnBrutal} bg-cyan-400 py-2 flex-1`}>Copiar Todos</button>
                              </div>
                           </div>
                         )}
                      </div>
-
                   </div>
                </div>
             </div>
@@ -627,7 +637,7 @@ export default function GCLabPro() {
   }
 
   // =========================================================================
-  // INTERFACE INTERATIVA DO ALUNO (MANTIDA)
+  // INTERFACE ALUNO (MANTIDA SEM ALTERAÇÕES)
   // =========================================================================
   return (
     <div className="min-h-screen bg-pink-500 p-4 md:p-10 font-sans print:bg-white print:p-0">
@@ -672,7 +682,6 @@ export default function GCLabPro() {
                   }} className={`${btnBrutal} w-full bg-black text-white`}>Vincular</button>
                 </div>
               </div>
-
               <div className="border-4 border-black p-5 bg-orange-100 shadow-[6px_6px_0px_black] space-y-3">
                 <h4 className="font-black uppercase text-sm text-center flex items-center justify-center gap-1"><History size={16}/> Resgatar Projeto</h4>
                 <div className="flex">
@@ -769,17 +778,14 @@ export default function GCLabPro() {
                   </div>
                   <img src={uniaraLogo} alt="Uniara" className="h-12 opacity-90" />
                 </div>
-
                 <div className="grid grid-cols-2 gap-6 mb-10 text-sm">
                   <div><p className="text-gray-400 uppercase text-[10px] font-bold mb-1">Empresa</p><p className="font-bold text-lg text-gray-900">{formData.empresa}</p></div>
                   <div><p className="text-gray-400 uppercase text-[10px] font-bold mb-1">Equipe</p><p className="font-medium text-gray-800">{formData.alunos.join(", ")}</p></div>
                 </div>
-
                 <div className="mb-8">
                   <h3 className="text-blue-900 font-bold uppercase text-xs border-b border-gray-300 pb-2 mb-4">1. Diagnóstico Central</h3>
                   <p className="text-gray-800 bg-gray-50 p-4 border-l-4 border-blue-900 italic">"{formData.gapPrincipal}"</p>
                 </div>
-                
                 <div className="mt-16 text-center text-[10px] text-gray-400 border-t border-gray-200 pt-6">Sistema Analítico GC-LAB 4.0 — Prof. Gerson Braz</div>
               </div>
             </div>
